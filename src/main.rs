@@ -14,7 +14,7 @@ fn main() {
         match full_command.as_slice() {
             [] => continue,
             ["exit"] => break,
-            ["echo", rest @ ..] => println!("{}", rest.join("")),
+            ["echo", rest @ ..] => println!("{}", rest.join(" ")),
             ["type", rest @ ("exit" | "echo" | "type")] => println!("{} is a shell builtin", rest),
             ["type", rest @ ..] =>  println!("{}: not found", rest[0]),
             _ => println!("{}: command not found", full_command[0]),
