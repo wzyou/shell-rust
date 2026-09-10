@@ -18,7 +18,7 @@ fn get_type_of_command(command: &str) -> TypeCommand {
             let Ok(dir) = _dir else { continue; };
             if let (Some(file_name), Ok(metadata)) = (dir.file_name().to_str(), dir.metadata()) {
                 if file_name == command && metadata.permissions().mode() & 0o111 != 0 {
-                    println!("{} is {}/{}", file_name, path, file_name);
+                    // println!("{} is {}/{}", file_name, path, file_name);
                     // break 'search;
                     return TypeCommand::Program(format!("{}/{}", path, file_name));
                 }
@@ -60,17 +60,13 @@ fn main() {
             ["type", rest @ ("exit" | "echo" | "type")] => println!("{} is a shell builtin", rest),
             ["type", rest @ ..] => {
                 match get_type_of_command(rest[0]) {
-                    TypeCommand::Program(custom_exe) => {
-                        execute(&custom_exe, &rest[1..]);
-                    },
+                    TypeCommand::Program(custom_exe) => println!("{} is {}", rest[0], custom_exe),
                     _ => println!("{}: not found", rest[0]),
                 }
             }
             [commands @ ..] => {
                 match get_type_of_command(commands[0]) {
-                    TypeCommand::Program(custom_exe) => {
-                        execute(&custom_exe, &commands[1..]);
-                    },
+                    TypeCommand::Program(custom_exe) => execute(&custom_exe, &commands[1..]),
                     _ => println!("{}: command not found", commands[0]),
                 }
             },
