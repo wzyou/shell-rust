@@ -45,10 +45,42 @@ fn execute(custom_exe: &str, args: &[&str]) {
 }
 
 mod builtin {
-    use std::env;
+    use std::{env, path::Path};
 
     pub fn pwd() -> String {
         env::var("PWD").unwrap_or_else(|_| "/".to_string())
+    }
+
+    pub fn cd(dir: &str) {
+        let current_dir: String;
+        if dir.starts_with("/") {
+            current_dir = String::new();
+        } else {
+            current_dir = pwd();
+        }
+
+        let target_path = current_dir.to_string() + "/" + dir;
+        match Path::new(&target_path).try_exists() {
+            Ok(true) => {},
+            _ => {
+                println!("cd: {}: No such file or directory", dir);
+                return;
+            },
+        }
+
+        let mut current_paths:Vec<&str> = current_dir.split("/").collect();
+        // let target_paths = &current_paths[..];
+        let paths:Vec<&str> = dir.split("/").collect();
+        for path in paths {
+            match path {
+                ".." => { current_paths.pop(); },
+                "." => {},
+                p => { current_paths.push(p); },
+            }
+        }
+
+        let target:String = current_paths.join("/");
+        unsafe { env::set_var("PWD", target) };
     }
 }
 
@@ -66,6 +98,7 @@ fn main() {
             ["exit"] => break,
             ["echo", rest @ ..] => println!("{}", rest.join(" ")),
             ["pwd"] => println!("{}", builtin::pwd()),
+            ["cd", dir] => builtin::cd(*dir),
             ["type", rest @ ("exit" | "echo" | "type" | "pwd")] => println!("{} is a shell builtin", rest),
             ["type", rest @ ..] => {
                 match get_type_of_command(rest[0]) {
