@@ -71,7 +71,7 @@ mod builtin {
         let mut current_paths:Vec<&str> = current_dir.split("/").collect();
         // let target_paths = &current_paths[..];
         let paths:Vec<&str> = dir.split("/").collect();
-        for path in paths {
+        for &path in &paths[1..] {
             match path {
                 ".." => { current_paths.pop(); },
                 "." => {},
