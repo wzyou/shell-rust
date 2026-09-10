@@ -66,7 +66,7 @@ fn main() {
             }
             [commands @ ..] => {
                 match get_type_of_command(commands[0]) {
-                    TypeCommand::Program(custom_exe) => execute(&custom_exe, &commands[1..]),
+                    TypeCommand::Program(_) => execute(commands[0], &commands[1..]),
                     _ => println!("{}: command not found", commands[0]),
                 }
             },
