@@ -51,7 +51,19 @@ mod builtin {
         env::var("PWD").unwrap_or_else(|_| "/".to_string())
     }
 
+    pub fn cd_home() {
+        let Ok(home_dir) = env::var("HOME") else {
+            println!("HOME: not found");
+            return;
+        };
+        unsafe { env::set_var("PWD", home_dir); }
+    }
+
     pub fn cd(dir: &str) {
+        if dir == "~" {
+            cd_home();
+            return;
+        }
         let current_dir: String;
         if dir.starts_with("/") {
             current_dir = String::new();
@@ -99,6 +111,7 @@ fn main() {
             ["echo", rest @ ..] => println!("{}", rest.join(" ")),
             ["pwd"] => println!("{}", builtin::pwd()),
             ["cd", dir] => builtin::cd(*dir),
+            ["cd"] => builtin::cd_home(),
             ["type", rest @ ("exit" | "echo" | "type" | "pwd")] => println!("{} is a shell builtin", rest),
             ["type", rest @ ..] => {
                 match get_type_of_command(rest[0]) {
