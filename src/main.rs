@@ -26,7 +26,7 @@ fn main() {
             if builtin_commands.iter().any(|&c| *c == *o_command ) {
                 println!("{} is a shell builtin", o_command);
             } else {
-                println!("{}: command not found", o_command);
+                println!("{}: not found", o_command);
             }
             continue;
         }
