@@ -44,6 +44,14 @@ fn execute(custom_exe: &str, args: &[&str]) {
     }
 }
 
+mod builtin {
+    use std::env;
+
+    pub fn pwd() -> String {
+        env::var("PWD").unwrap_or_else(|_| "/".to_string())
+    }
+}
+
 fn main() {
     loop {
         print!("$ ");
@@ -57,7 +65,8 @@ fn main() {
             [] => continue,
             ["exit"] => break,
             ["echo", rest @ ..] => println!("{}", rest.join(" ")),
-            ["type", rest @ ("exit" | "echo" | "type")] => println!("{} is a shell builtin", rest),
+            ["pwd"] => println!("{}", builtin::pwd()),
+            ["type", rest @ ("exit" | "echo" | "type" | "pwd")] => println!("{} is a shell builtin", rest),
             ["type", rest @ ..] => {
                 match get_type_of_command(rest[0]) {
                     TypeCommand::Program(custom_exe) => println!("{} is {}", rest[0], custom_exe),
