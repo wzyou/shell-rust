@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
-use std::{env, fs};
+use std::{env, fs, os::unix::fs::PermissionsExt};
 
 fn get_path() -> Vec<String> {
     env::var("PATH")
@@ -27,16 +27,17 @@ fn main() {
             ["type", rest @ ..] => 'path: {
                 let paths = get_path();
                 for path in &paths {
-                    if let Ok(entrues) = fs::read_dir(path) {
-                        for _dir in entrues {
-                            if let Ok(dir) = _dir {
-                                if dir.file_name() == rest[0] {
-                                    println!("{} is {}/{}", rest[0], path, rest[0]);
-                                    break 'path;
-                                }
+                    let Ok(entrues) = fs::read_dir(path) else { continue; };
+                    for _dir in entrues {
+                        let Ok(dir) = _dir else { continue; };
+                        if let (Some(file_name), Ok(metadata)) = (dir.file_name().to_str(), dir.metadata()) {
+                            if file_name == rest[0] && metadata.permissions().mode() & 0o111 != 0 {
+                                println!("{} is {}/{}", file_name, path, file_name);
+                                break 'path;
                             }
                         }
                     }
+                    
                 }
                 println!("{}: not found", rest[0])
             }
