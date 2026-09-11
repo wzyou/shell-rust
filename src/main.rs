@@ -81,12 +81,14 @@ fn parse_shell_args(intput: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut arg = String::new();
     let mut is_single_quotes = false;
+    let mut is_double_quotes = false;
 
     let chars = intput.chars();
     for c in chars {
         match c {
-            '\'' => is_single_quotes = !is_single_quotes,
-            ' ' | '\t' | '\n' if !is_single_quotes => {
+            '\'' if !is_double_quotes => is_single_quotes = !is_single_quotes,
+            '"' if !is_single_quotes => is_double_quotes = !is_double_quotes,
+            ' ' | '\t' | '\n' if !is_single_quotes && !is_double_quotes => {
                 if !arg.is_empty() {
                     args.push(arg.to_owned());
                     arg = String::new();
