@@ -83,11 +83,18 @@ fn parse_shell_args(intput: &str) -> Vec<String> {
     let mut is_single_quotes = false;
     let mut is_double_quotes = false;
 
-    let chars = intput.chars();
-    for c in chars {
+    let mut chars = intput.chars().peekable();
+    while let Some(c) = chars.next() {
         match c {
             '\'' if !is_double_quotes => is_single_quotes = !is_single_quotes,
             '"' if !is_single_quotes => is_double_quotes = !is_double_quotes,
+            '\\' if !is_single_quotes => {
+                if let Some(next_c) = chars.peek() {
+                    arg.push(*next_c);
+                    chars.next();
+                }
+                // arg.push(chars.peek().unwrap());
+            }
             ' ' | '\t' | '\n' if !is_single_quotes && !is_double_quotes => {
                 if !arg.is_empty() {
                     args.push(arg.to_owned());
