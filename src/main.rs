@@ -37,6 +37,7 @@ enum TypeCommand {
 
 fn execute(custom_exe: &str, args: &[&str]) {
     match Command::new(custom_exe)
+        // .envs(env::vars())
         .args(args.iter())
         .status() {
         Ok(_) => {},
@@ -45,54 +46,30 @@ fn execute(custom_exe: &str, args: &[&str]) {
 }
 
 mod builtin {
-    use std::{env, path::Path};
+    use std::{env, path::PathBuf};
 
-    pub fn pwd() -> String {
-        env::var("PWD").unwrap_or_else(|_| "/".to_string())
-    }
-
-    pub fn cd_home() {
-        let Ok(home_dir) = env::var("HOME") else {
-            println!("HOME: not found");
-            return;
-        };
-        unsafe { env::set_var("PWD", home_dir); }
+    pub fn pwd() -> PathBuf {
+        env::current_dir().unwrap()
     }
 
     pub fn cd(dir: &str) {
-        if dir == "~" {
-            cd_home();
-            return;
+        let cwd = pwd();
+        let dest;//= cwd.join(dir);
+        match dir {
+            "~" => dest = cwd.join(env::var("HOME").unwrap()),
+            "-" => dest = cwd.join(env::var("OLDPWD").unwrap()),
+            _ => dest = cwd.join(dir),
         }
-        let current_dir: String;
-        if dir.starts_with("/") {
-            current_dir = String::new();
-        } else {
-            current_dir = pwd();
-        }
-
-        let target_path = current_dir.to_string() + "/" + dir;
-        match Path::new(&target_path).try_exists() {
-            Ok(true) => {},
-            _ => {
-                println!("cd: {}: No such file or directory", dir);
-                return;
+        match env::set_current_dir(dest) {
+            Ok(()) => {
+                unsafe { env::set_var("OLDPWD", cwd.to_str().unwrap()); }
+                let new_pwd = env::current_dir().unwrap();
+                unsafe { env::set_var("PWD", new_pwd.to_str().unwrap()); }
             },
-        }
-
-        let mut current_paths:Vec<&str> = current_dir.split("/").collect();
-        // let target_paths = &current_paths[..];
-        let paths:Vec<&str> = dir.split("/").filter(|&p| p != "").collect();
-        for path in paths {
-            match path {
-                ".." => { current_paths.pop(); },
-                "." => {},
-                p => { current_paths.push(p); },
+            Err(e) => {
+                eprintln!("cd: {e}");
             }
         }
-
-        let target:String = current_paths.join("/");
-        unsafe { env::set_var("PWD", target) };
     }
 }
 
@@ -109,9 +86,9 @@ fn main() {
             [] => continue,
             ["exit"] => break,
             ["echo", rest @ ..] => println!("{}", rest.join(" ")),
-            ["pwd"] => println!("{}", builtin::pwd()),
+            ["pwd"] => println!("{}", builtin::pwd().display()),
             ["cd", dir] => builtin::cd(*dir),
-            ["cd"] => builtin::cd_home(),
+            ["cd"] => builtin::cd("~"),
             ["type", rest @ ("exit" | "echo" | "type" | "pwd")] => println!("{} is a shell builtin", rest),
             ["type", rest @ ..] => {
                 match get_type_of_command(rest[0]) {
