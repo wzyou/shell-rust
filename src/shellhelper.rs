@@ -61,7 +61,13 @@ impl ShellHelper {
                             ""
                         }
                     });
-                    if let Ok(output) = Command::new(v).arg(cmd).arg(cur_arg).arg(pre_arg).output()
+                    if let Ok(output) = Command::new(v)
+                        .env("COMP_LINE", line)
+                        .env("COMP_POINT", pos.to_string())
+                        .arg(cmd)
+                        .arg(cur_arg)
+                        .arg(pre_arg)
+                        .output()
                     {
                         let stdout_str = String::from_utf8_lossy(&output.stdout);
                         let matches = stdout_str
@@ -79,6 +85,7 @@ impl ShellHelper {
         None
     }
 }
+
 impl Completer for ShellHelper {
     type Candidate = Pair;
 
