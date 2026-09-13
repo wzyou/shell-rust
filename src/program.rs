@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File, OpenOptions},
     os::unix::fs::PermissionsExt,
-    process::{Command, ExitStatus, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
 };
 
 use crate::builtin::get_path;
@@ -10,16 +10,40 @@ use crate::shell_parse::Redirect;
 fn execute_with_io<T: Into<Stdio>, U: Into<Stdio>>(
     custom_exe: &str,
     args: &[&str],
-    stdout: T,
-    stderr: U,
+    stdout: Option<T>,
+    stderr: Option<U>,
 ) -> anyhow::Result<ExitStatus> {
-    match Command::new(custom_exe)
-        .stdout(stdout)
-        .stderr(stderr)
-        .args(args)
-        .status()
-    {
+    let mut c = Command::new(custom_exe);
+    if let Some(out) = stdout {
+        c.stdout(out);
+    }
+
+    if let Some(out) = stderr {
+        c.stderr(out);
+    }
+
+    match c.args(args).status() {
         Ok(exit_status) => Ok(exit_status),
+        Err(e) => Err(e.into()),
+    }
+}
+
+fn spawn_with_io<T: Into<Stdio>, U: Into<Stdio>>(
+    custom_exe: &str,
+    args: &[&str],
+    stdout: Option<T>,
+    stderr: Option<U>,
+) -> anyhow::Result<Child> {
+    let mut c = Command::new(custom_exe);
+    if let Some(out) = stdout {
+        c.stdout(out);
+    }
+
+    if let Some(out) = stderr {
+        c.stderr(out);
+    }
+    match c.args(args).spawn() {
+        Ok(child) => Ok(child),
         Err(e) => Err(e.into()),
     }
 }
@@ -61,32 +85,43 @@ pub fn execute(
     redirect_stdout: Option<Redirect>,
     redirect_stderr: Option<Redirect>,
 ) -> anyhow::Result<ExitStatus> {
-    fn redirect_create(redirect: &Redirect) -> anyhow::Result<Stdio> {
-        match redirect {
-            Redirect::Normal(f) => match File::create(f) {
-                Ok(file) => Ok(Stdio::from(file)),
+    let io_out = redirect_create(redirect_stdout);
+    let io_err = redirect_create(redirect_stderr);
+
+    execute_with_io(custom_exe, args, io_out, io_err)
+}
+
+pub fn spawn(
+    custom_exe: &str,
+    args: &[&str],
+    redirect_stdout: Option<Redirect>,
+    redirect_stderr: Option<Redirect>,
+) -> anyhow::Result<Child> {
+    let io_out = redirect_create(redirect_stdout);
+    let io_err = redirect_create(redirect_stderr);
+
+    spawn_with_io(custom_exe, args, io_out, io_err)
+}
+
+fn redirect_create(redirect: Option<Redirect>) -> Option<Stdio> {
+    if let Some(r) = redirect {
+        match r {
+            Redirect::Normal(f) => match File::create(&f) {
+                Ok(file) => Some(Stdio::from(file)),
                 Err(e) => {
-                    eprintln!("无法创建文件 {}: {}", f, e);
-                    return Err(e.into()); // 遇到错误直接返回，不执行后续命令
+                    eprintln!("无法创建文件 {}: {}", &f, e);
+                    None
                 }
             },
             Redirect::Append(f) => match OpenOptions::new().create(true).append(true).open(&f) {
-                Ok(file) => Ok(Stdio::from(file)),
+                Ok(file) => Some(Stdio::from(file)),
                 Err(e) => {
                     eprintln!("无法创建文件 {}: {}", f, e);
-                    return Err(e.into()); // 遇到错误直接返回，不执行后续命令
+                    None
                 }
             },
         }
+    } else {
+        None
     }
-    let io_out = match redirect_stdout {
-        Some(redirect) => redirect_create(&redirect)?,
-        None => Stdio::inherit(),
-    };
-    let io_err = match redirect_stderr {
-        Some(redirect) => redirect_create(&redirect)?,
-        None => Stdio::inherit(),
-    };
-
-    execute_with_io(custom_exe, args, io_out, io_err)
 }

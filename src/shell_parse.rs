@@ -16,10 +16,13 @@ pub fn parse_shell_args(intput: &str) -> Vec<String> {
                 }
                 // arg.push(chars.peek().unwrap());
             }
-            ' ' | '\t' | '\n' if !is_single_quotes && !is_double_quotes => {
+            '&' | ' ' | '\t' | '\n' if !is_single_quotes && !is_double_quotes => {
                 if !arg.is_empty() {
                     args.push(arg);
                     arg = String::new();
+                }
+                if c == '&' {
+                    args.push(c.to_string());
                 }
             }
             '>' if !is_double_quotes && !is_single_quotes => {

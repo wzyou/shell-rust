@@ -39,10 +39,12 @@ impl Shell {
     pub fn run(&mut self) -> anyhow::Result<()> {
         loop {
             let readline = self.rl.readline("$ ");
+            self.context.borrow_mut().update_tasks();
             match readline {
                 Ok(line) => {
-                    self.rl.add_history_entry(&line)?;
-                    if let Ok(true) = self.line_deal(&line) {
+                    let line = line.trim();
+                    self.rl.add_history_entry(line)?;
+                    if let Ok(true) = self.line_deal(line) {
                         break;
                     }
                 }
@@ -89,13 +91,34 @@ impl Shell {
             }
             [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
                 builtin::TypeCommand::Program(_) => {
-                    if let Err(e) = program::execute(
-                        commands[0],
-                        &commands[1..],
-                        redirect_file,
-                        redirect_file_err,
-                    ) {
-                        eprintln!("ERR: {e}");
+                    if commands[commands.len() - 1] != "&" {
+                        if let Err(e) = program::execute(
+                            commands[0],
+                            &commands[1..],
+                            redirect_file,
+                            redirect_file_err,
+                        ) {
+                            eprintln!("ERR: {e}");
+                        }
+                    } else {
+                        match program::spawn(
+                            commands[0],
+                            &commands[1..commands.len() - 1],
+                            redirect_file,
+                            redirect_file_err,
+                        ) {
+                            Ok(child) => {
+                                let pid = child.id();
+                                let id = self.context.borrow_mut().add_task(
+                                    child,
+                                    commands.iter().map(|arg| arg.to_string()).collect(),
+                                );
+                                println!("[{}] {}", id, pid);
+                            }
+                            Err(e) => {
+                                eprintln!("ERR: {e}");
+                            }
+                        }
                     }
                 }
                 _ => println!("{}: command not found", commands[0]),

@@ -48,7 +48,7 @@ impl Validator for ShellHelper {}
 
 impl ShellHelper {
     fn complete_custem(&self, line: &str, pos: usize, start: usize) -> Option<(usize, Vec<Pair>)> {
-        let args: Vec<&str> = line[..pos].split(" ").collect();
+        let args: Vec<&str> = line[..pos].trim().split(" ").collect();
         if !args.is_empty() {
             let cmd = args[0];
             if self.commands.contains(&cmd.to_string())
