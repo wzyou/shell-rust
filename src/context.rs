@@ -23,7 +23,12 @@ impl Context {
         let id = self.tasks.iter().map(|t| t.id).max().unwrap_or(0) + 1;
 
         for t in &mut self.tasks {
-            t.flush_flag = '-';
+            // t.flush_flag = '-';
+            if t.flush_flag.eq(&'+') {
+                t.flush_flag = '-';
+            } else {
+                t.flush_flag = ' ';
+            }
         }
 
         self.tasks.push(Task {
