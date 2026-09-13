@@ -46,6 +46,16 @@ pub enum TypeCommand {
     None,
 }
 
+const BUILTIN_COMMANDS: &[&str] = &["cd", "exit", "echo", "type", "pwd", "complete"];
+
+pub fn is_builtin_cmd(cmd: &str) -> bool {
+    BUILTIN_COMMANDS.contains(&cmd)
+}
+
+pub fn builtin_cmds() -> Vec<String> {
+    BUILTIN_COMMANDS.iter().map(|c| c.to_string()).collect()
+}
+
 pub fn execute_with_redirect(
     args: &[&str],
     out: Option<Redirect>,
@@ -94,11 +104,13 @@ pub fn execute_with_redirect(
                 writeln!(io_err, "cd: {}", e)?;
             }
         }
-        [
-            "type",
-            rest @ ("exit" | "echo" | "type" | "pwd" | "complete"),
-        ] => {
-            writeln!(io_out, "{} is a shell builtin", rest)?;
+        ["complete", rest @ ..] => {
+            if !rest.is_empty() && rest[0] == "-p" {
+                writeln!(io_out, "complete: {}: no completion specification", rest[1])?;
+            }
+        }
+        ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
+            writeln!(io_out, "{} is a shell builtin", command)?;
         }
         ["type", rest @ ..] => match get_type_of_command(rest[0]) {
             TypeCommand::Program(custom_exe) => {

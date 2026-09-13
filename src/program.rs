@@ -24,7 +24,7 @@ fn execute_with_io<T: Into<Stdio>, U: Into<Stdio>>(
     }
 }
 
-pub fn get_ext_executes() -> anyhow::Result<Vec<String>> {
+pub fn get_ext_executes() -> Vec<String> {
     let paths = get_path();
     let mut execs: Vec<String> = paths
         .iter()
@@ -52,7 +52,7 @@ pub fn get_ext_executes() -> anyhow::Result<Vec<String>> {
     execs.sort();
     // 2. 再去重
     execs.dedup();
-    Ok(execs)
+    execs
 }
 
 pub fn execute(
