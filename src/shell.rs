@@ -28,6 +28,8 @@ impl Shell {
 
         rl.set_helper(Some(helper));
         rl.set_completion_type(CompletionType::List);
+        rl.set_bell_style(rustyline::config::BellStyle::Audible);
+
         Self {
             rl,
             context: context.clone().into(),

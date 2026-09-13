@@ -55,7 +55,7 @@ impl ShellHelper {
                 let ctx = &*self.context.borrow();
                 if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
                     let (cmd, cur_arg, pre_arg) = (cmd, &line[start..pos], {
-                        if args.len() >= 3 {
+                        if args.len() >= 2 {
                             args[args.len() - 2]
                         } else {
                             ""
