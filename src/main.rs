@@ -222,11 +222,21 @@ fn parse_shell_args(intput: &str) -> Vec<String> {
                 }
             }
             '>' if !is_double_quotes && !is_single_quotes => {
-                if !arg.is_empty() && arg.ne("1") {
-                    args.push(arg);
+                if !arg.is_empty() {
+                    if arg.eq("1") {
+                        arg = String::new();
+                        args.push("1>".to_string());
+                    } else if arg.eq("2") {
+                        arg = String::new();
+                        args.push("2>".to_string());
+                    } else {
+                        args.push(arg);
+                        arg = String::new();
+                        args.push("1>".to_string());
+                    }
+                } else {
+                    args.push("1>".to_string());
                 }
-                arg = String::new();
-                args.push(">".to_string());
             }
             _ => arg.push(c),
         }
@@ -237,9 +247,10 @@ fn parse_shell_args(intput: &str) -> Vec<String> {
     args
 }
 
-fn split_redirect(args: &[&str]) -> (Vec<String>, Option<String>) {
+fn split_redirect(args: &[&str]) -> (Vec<String>, Option<String>, Option<String>) {
     let mut command_args = Vec::new();
     let mut redirect_file = None;
+    let mut redirect_file_err = None;
     let mut iter = args.into_iter().copied().peekable();
 
     while let Some(arg) = iter.next() {
@@ -247,8 +258,12 @@ fn split_redirect(args: &[&str]) -> (Vec<String>, Option<String>) {
             ("1", Some(">")) => {
                 panic!("error: 1>")
             }
-            (">", Some(file)) => {
+            ("1>", Some(file)) => {
                 redirect_file = Some(file.to_owned());
+                iter.next();
+            }
+            ("2>", Some(file)) => {
+                redirect_file_err = Some(file.to_owned());
                 iter.next();
             }
             (arg, _) => {
@@ -257,7 +272,7 @@ fn split_redirect(args: &[&str]) -> (Vec<String>, Option<String>) {
         }
     }
 
-    (command_args, redirect_file)
+    (command_args, redirect_file, redirect_file_err)
 }
 
 fn main() {
@@ -269,7 +284,7 @@ fn main() {
 
         let full_command = parse_shell_args(&input); //input.split_whitespace().collect();
         let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
-        let (full_command, redirect_file) = split_redirect(&full_command);
+        let (full_command, redirect_file, redirect_file_err) = split_redirect(&full_command);
         let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
         // let redirect_stdio = redirect_file
         //     .map(|f| Stdio::from(File::create(f).unwrap()))
@@ -278,7 +293,11 @@ fn main() {
             [] => continue,
             ["exit"] => break,
             [cmd, ..] if matches!(*cmd, "echo" | "pwd" | "cd" | "type") => {
-                match builtin::execute_with_redirect(args_ref.as_slice(), redirect_file, None) {
+                match builtin::execute_with_redirect(
+                    args_ref.as_slice(),
+                    redirect_file,
+                    redirect_file_err,
+                ) {
                     Ok(_) => {}
                     Err(e) => {
                         eprint!("{e}");
@@ -308,7 +327,12 @@ fn main() {
             // },
             [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
                 builtin::TypeCommand::Program(_) => {
-                    if let Err(e) = execute(commands[0], &commands[1..], redirect_file, None) {
+                    if let Err(e) = execute(
+                        commands[0],
+                        &commands[1..],
+                        redirect_file,
+                        redirect_file_err,
+                    ) {
                         eprintln!("ERR: {e}");
                     }
                 }
