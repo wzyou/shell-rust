@@ -123,6 +123,8 @@ pub fn execute_with_redirect(
                     context
                         .regist_cmd_complete
                         .insert(cmd.to_string(), compelte.to_string());
+                } else if rest.len() >= 2 && rest[0] == "-r" {
+                    context.regist_cmd_complete.remove(rest[1]);
                 }
             }
         }
