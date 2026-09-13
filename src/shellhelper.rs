@@ -1,4 +1,6 @@
 use std::cell::RefCell;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::process::Command;
 use std::rc::Rc;
 
@@ -61,6 +63,22 @@ impl ShellHelper {
                             ""
                         }
                     });
+                    // eprintln!("{v}, {cmd}, {cur_arg}, {pre_arg}");
+                    fn log_debug(msg: &str) {
+                        if let Ok(mut file) = OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("/tmp/debug.log")
+                        {
+                            let _ = writeln!(file, "{}", msg);
+                        }
+                    }
+
+                    // 在 completer 中使用：
+                    log_debug(&format!(
+                        "line: '{}', pos: {}, cmd: {}, current: {}, prev: {}, start: {}",
+                        line, pos, cmd, cur_arg, pre_arg, start
+                    ));
                     if let Ok(output) = Command::new(v)
                         .env("COMP_LINE", line)
                         .env("COMP_POINT", pos.to_string())
