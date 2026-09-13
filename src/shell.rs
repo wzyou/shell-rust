@@ -39,7 +39,7 @@ impl Shell {
     pub fn run(&mut self) -> anyhow::Result<()> {
         loop {
             let readline = self.rl.readline("$ ");
-            self.context.borrow_mut().update_tasks();
+
             match readline {
                 Ok(line) => {
                     let line = line.trim();
