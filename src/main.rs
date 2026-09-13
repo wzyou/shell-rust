@@ -1,10 +1,13 @@
 use rustyline::completion::{Completer, Pair};
+use rustyline::config::Configurer;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::history::DefaultHistory;
 use rustyline::validate::Validator;
-use rustyline::{Editor, Helper, Result};
+use rustyline::{CompletionType, Editor, Helper, Result};
+use std::cell::{Cell, RefCell};
+use std::io::{self, Write};
 use std::result::Result::Ok;
 
 use crate::program::get_ext_executes;
@@ -16,6 +19,8 @@ mod program;
 struct ShellHelper {
     commands: Vec<String>,
     ext_executes: Vec<String>,
+    last_line: RefCell<String>,
+    tab_count: Cell<usize>,
 }
 
 impl Hinter for ShellHelper {
@@ -57,16 +62,13 @@ impl Completer for ShellHelper {
                 })
                 .collect();
         }
+
         Ok((start, matches))
     }
 }
 
 fn main() -> anyhow::Result<()> {
     let mut rl = Editor::<ShellHelper, DefaultHistory>::new()?;
-
-    // if rl.load_history("path").is_err() {
-    //     eprintln!("no history file");
-    // }
 
     let helper = ShellHelper {
         commands: vec![
@@ -77,9 +79,12 @@ fn main() -> anyhow::Result<()> {
             "echo".to_string(),
         ],
         ext_executes: get_ext_executes()?,
+        last_line: RefCell::new(String::new()),
+        tab_count: Cell::new(0),
     };
 
     rl.set_helper(Some(helper));
+    rl.set_completion_type(CompletionType::List);
 
     loop {
         let readline = rl.readline("$ ");
