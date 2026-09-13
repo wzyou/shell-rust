@@ -1,4 +1,4 @@
-use rustyline::completion::{Completer, Pair};
+use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::Configurer;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
@@ -6,8 +6,6 @@ use rustyline::hint::Hinter;
 use rustyline::history::DefaultHistory;
 use rustyline::validate::Validator;
 use rustyline::{CompletionType, Editor, Helper, Result};
-use std::cell::{Cell, RefCell};
-use std::io::{self, Write};
 use std::result::Result::Ok;
 
 use crate::program::get_ext_executes;
@@ -19,8 +17,7 @@ mod program;
 struct ShellHelper {
     commands: Vec<String>,
     ext_executes: Vec<String>,
-    last_line: RefCell<String>,
-    tab_count: Cell<usize>,
+    filename_completer: FilenameCompleter,
 }
 
 impl Hinter for ShellHelper {
@@ -41,7 +38,7 @@ impl Completer for ShellHelper {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> Result<(usize, Vec<Self::Candidate>)> {
-        let mut matches = Vec::new();
+        let matches;
 
         let start = line[..pos]
             .rfind(|c: char| c.is_whitespace())
@@ -61,6 +58,21 @@ impl Completer for ShellHelper {
                     replacement: cmd.to_string() + " ",
                 })
                 .collect();
+        } else {
+            return self
+                .filename_completer
+                .complete_path(line, pos)
+                .map(|(size, ps)| {
+                    (
+                        size,
+                        ps.iter()
+                            .map(|p| Pair {
+                                display: p.display.clone(),
+                                replacement: p.replacement.clone() + " ",
+                            })
+                            .collect(),
+                    )
+                });
         }
 
         Ok((start, matches))
@@ -79,8 +91,7 @@ fn main() -> anyhow::Result<()> {
             "echo".to_string(),
         ],
         ext_executes: get_ext_executes()?,
-        last_line: RefCell::new(String::new()),
-        tab_count: Cell::new(0),
+        filename_completer: FilenameCompleter::new(),
     };
 
     rl.set_helper(Some(helper));
