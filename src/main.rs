@@ -1,53 +1,142 @@
-// use anyhow::Ok as AOK;
-#[allow(unused_imports)]
-use std::io::{self, Write};
+use rustyline::completion::{Completer, Pair};
+use rustyline::error::ReadlineError;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::history::DefaultHistory;
+use rustyline::validate::Validator;
+use rustyline::{Editor, Helper, Result};
 use std::result::Result::Ok;
 mod shell_parse;
 
 mod builtin;
 mod program;
 
-fn main() {
+struct ShellHelper {
+    commands: Vec<String>,
+}
+
+impl Hinter for ShellHelper {
+    type Hint = String;
+    // ...
+}
+impl Highlighter for ShellHelper {
+    // ...
+}
+impl Helper for ShellHelper {}
+
+impl Validator for ShellHelper {}
+impl Completer for ShellHelper {
+    type Candidate = Pair;
+    fn complete(
+        &self, // FIXME should be `&mut self`
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> Result<(usize, Vec<Self::Candidate>)> {
+        let mut matches = Vec::new();
+
+        let start = line[..pos]
+            .rfind(|c: char| c.is_whitespace())
+            .map_or(0, |i| i + 1);
+
+        let word = &line[start..pos];
+
+        if start == 0 {
+            matches = self
+                .commands
+                .iter()
+                .filter(|&cmd| cmd.starts_with(word))
+                .map(|cmd| Pair {
+                    display: cmd.to_owned(),
+                    replacement: cmd.to_string() + " ",
+                })
+                .collect();
+        }
+        Ok((start, matches))
+    }
+}
+
+fn main() -> anyhow::Result<()> {
+    let mut rl = Editor::<ShellHelper, DefaultHistory>::new()?;
+
+    // if rl.load_history("path").is_err() {
+    //     eprintln!("no history file");
+    // }
+
+    let helper = ShellHelper {
+        commands: vec![
+            "pwd".to_string(),
+            "exit".to_string(),
+            "cd".to_string(),
+            "type".to_string(),
+            "echo".to_string(),
+        ],
+    };
+
+    rl.set_helper(Some(helper));
+
     loop {
-        print!("$ ");
-        io::stdout().flush().unwrap();
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        let readline = rl.readline("$ ");
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(&line)?;
+                if let Ok(true) = line_deal(&line) {
+                    break;
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
 
-        let full_command = shell_parse::parse_shell_args(&input); //input.split_whitespace().collect();
-        let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
-        let (full_command, redirect_file, redirect_file_err) =
-            shell_parse::split_redirect(&full_command);
-        let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
+    Ok(())
+}
 
-        match args_ref.as_slice() {
-            [] => continue,
-            ["exit"] => break,
-            [cmd, ..] if matches!(*cmd, "echo" | "pwd" | "cd" | "type") => {
-                match builtin::execute_with_redirect(
-                    args_ref.as_slice(),
+fn line_deal(input: &str) -> anyhow::Result<bool> {
+    let full_command = shell_parse::parse_shell_args(&input); //input.split_whitespace().collect();
+    let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
+    let (full_command, redirect_file, redirect_file_err) =
+        shell_parse::split_redirect(&full_command);
+    let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
+
+    match args_ref.as_slice() {
+        [] => {}
+        ["exit"] => return Ok(true),
+        [cmd, ..] if matches!(*cmd, "echo" | "pwd" | "cd" | "type") => {
+            match builtin::execute_with_redirect(
+                args_ref.as_slice(),
+                redirect_file,
+                redirect_file_err,
+            ) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprint!("{e}");
+                }
+            };
+        }
+        [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
+            builtin::TypeCommand::Program(_) => {
+                if let Err(e) = program::execute(
+                    commands[0],
+                    &commands[1..],
                     redirect_file,
                     redirect_file_err,
                 ) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        eprint!("{e}");
-                    }
-                };
-            }
-            [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
-                builtin::TypeCommand::Program(_) => {
-                    if let Err(e) = program::execute(
-                        commands[0],
-                        &commands[1..],
-                        redirect_file,
-                        redirect_file_err,
-                    ) {
-                        eprintln!("ERR: {e}");
-                    }
+                    eprintln!("ERR: {e}");
                 }
-                _ => println!("{}: command not found", commands[0]),
-            },
-        }
+            }
+            _ => println!("{}: command not found", commands[0]),
+        },
     }
+    Ok(false)
 }
