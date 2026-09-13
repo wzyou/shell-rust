@@ -1,4 +1,5 @@
 mod builtin;
+mod context;
 mod program;
 mod shell;
 mod shell_parse;

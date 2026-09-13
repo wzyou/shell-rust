@@ -1,15 +1,13 @@
-use std::collections::HashMap;
-
 use rustyline::{
     CompletionType, Editor, completion::FilenameCompleter, config::Configurer,
     error::ReadlineError, history::DefaultHistory,
 };
 
-use crate::{builtin, program, shell_parse, shellhelper};
+use crate::{builtin, context, program, shell_parse, shellhelper};
 
 pub struct Shell {
     rl: Editor<shellhelper::ShellHelper, rustyline::history::FileHistory>,
-    regist_cmd_complete: HashMap<String, String>,
+    context: context::Context,
 }
 
 impl Shell {
@@ -27,7 +25,7 @@ impl Shell {
         rl.set_completion_type(CompletionType::List);
         Self {
             rl,
-            regist_cmd_complete: HashMap::new(),
+            context: context::Context::new(),
         }
     }
 
@@ -59,7 +57,7 @@ impl Shell {
         Ok(())
     }
 
-    fn line_deal(&self, input: &str) -> anyhow::Result<bool> {
+    fn line_deal(&mut self, input: &str) -> anyhow::Result<bool> {
         let full_command = shell_parse::parse_shell_args(&input); //input.split_whitespace().collect();
         let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
         let (full_command, redirect_file, redirect_file_err) =
@@ -71,6 +69,7 @@ impl Shell {
             ["exit"] => return Ok(true),
             [cmd, ..] if builtin::is_builtin_cmd(cmd) => {
                 match builtin::execute_with_redirect(
+                    &mut self.context,
                     args_ref.as_slice(),
                     redirect_file,
                     redirect_file_err,

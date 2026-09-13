@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::shell_parse::Redirect;
+use crate::{context, shell_parse::Redirect};
 
 pub fn get_path() -> Vec<String> {
     env::var("PATH")
@@ -57,6 +57,7 @@ pub fn builtin_cmds() -> Vec<String> {
 }
 
 pub fn execute_with_redirect(
+    context: &mut context::Context,
     args: &[&str],
     out: Option<Redirect>,
     err: Option<Redirect>,
@@ -105,8 +106,24 @@ pub fn execute_with_redirect(
             }
         }
         ["complete", rest @ ..] => {
-            if !rest.is_empty() && rest[0] == "-p" {
-                writeln!(io_out, "complete: {}: no completion specification", rest[1])?;
+            if !rest.is_empty() {
+                if rest[0] == "-p" && rest.len() >= 2 {
+                    // writeln!(io_out, "complete: {}: no completion specification", rest[1])?;
+                    let cmd = rest[1];
+                    match context.regist_cmd_complete.get_key_value(cmd) {
+                        Some((_, compelte)) => {
+                            writeln!(io_out, "complete -C '{}' {}", compelte, cmd)?
+                        }
+                        None => {
+                            writeln!(io_out, "complete: {}: no completion specification", rest[1])?
+                        }
+                    }
+                } else if rest[0] == "-C" && rest.len() >= 3 {
+                    let (cmd, compelte) = (rest[2], rest[1]);
+                    context
+                        .regist_cmd_complete
+                        .insert(cmd.to_string(), compelte.to_string());
+                }
             }
         }
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
