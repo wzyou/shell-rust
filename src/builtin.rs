@@ -128,7 +128,9 @@ pub fn execute_with_redirect(
                 }
             }
         }
-        ["jobs", _rest @ ..] => {}
+        ["jobs", _rest @ ..] => {
+            context.list_tasks();
+        }
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
             writeln!(io_out, "{} is a shell builtin", command)?;
         }
