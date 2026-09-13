@@ -38,6 +38,8 @@ impl Shell {
 
     pub fn run(&mut self) -> anyhow::Result<()> {
         loop {
+            self.context.borrow_mut().update_tasks();
+
             let readline = self.rl.readline("$ ");
 
             match readline {

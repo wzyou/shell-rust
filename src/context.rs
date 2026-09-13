@@ -40,6 +40,36 @@ impl Context {
         id
     }
 
+    pub fn update_tasks(&mut self) {
+        self.tasks.retain_mut(|t| match t.child.try_wait() {
+            Ok(Some(_)) => {
+                let args = &t.args[..t.args.len() - 1];
+                println!(
+                    "[{}]{} {:<24}{}",
+                    t.id,
+                    t.flush_flag,
+                    "Done",
+                    args.join(" ")
+                );
+                false
+            }
+            Ok(None) => true,
+            Err(e) => {
+                eprintln!("error checking tasks {} {}: {}", t.id, t.args.join(" "), e);
+                false
+            }
+        });
+        let count = self.tasks.len();
+        for (i, t) in &mut self.tasks.iter_mut().enumerate() {
+            // t.flush_flag = '-';
+            if i == count - 1 {
+                t.flush_flag = '+';
+            } else if i == count - 2 {
+                t.flush_flag = '-';
+            }
+        }
+    }
+
     pub fn list_tasks(&mut self) {
         self.tasks.retain_mut(|t| match t.child.try_wait() {
             Ok(Some(_)) => {
