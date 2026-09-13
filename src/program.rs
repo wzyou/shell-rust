@@ -1,8 +1,10 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
+    os::unix::fs::PermissionsExt,
     process::{Command, ExitStatus, Stdio},
 };
 
+use crate::builtin::get_path;
 use crate::shell_parse::Redirect;
 
 fn execute_with_io<T: Into<Stdio>, U: Into<Stdio>>(
@@ -20,6 +22,37 @@ fn execute_with_io<T: Into<Stdio>, U: Into<Stdio>>(
         Ok(exit_status) => Ok(exit_status),
         Err(e) => Err(e.into()),
     }
+}
+
+pub fn get_ext_executes() -> anyhow::Result<Vec<String>> {
+    let paths = get_path();
+    let mut execs: Vec<String> = paths
+        .iter()
+        .filter_map(|path| fs::read_dir(path).ok())
+        .flat_map(|entries| {
+            entries.filter_map(|f| {
+                let Ok(file) = f else {
+                    return None;
+                };
+                if let (Some(file_name), Ok(metadata)) =
+                    (file.file_name().to_str(), file.metadata())
+                {
+                    if metadata.permissions().mode() & 0o111 != 0 {
+                        // println!("{} is {}/{}", file_name, path, file_name);
+                        // break 'search;
+                        // return TypeCommand::Program(format!("{}/{}", path, file_name));
+                        return Some(file_name.to_string());
+                    }
+                }
+                None
+            })
+        })
+        .collect();
+    // 1. 先排序（dedup 只能对相邻的重复元素生效）
+    execs.sort();
+    // 2. 再去重
+    execs.dedup();
+    Ok(execs)
 }
 
 pub fn execute(

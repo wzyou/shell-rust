@@ -6,6 +6,8 @@ use rustyline::history::DefaultHistory;
 use rustyline::validate::Validator;
 use rustyline::{Editor, Helper, Result};
 use std::result::Result::Ok;
+
+use crate::program::get_ext_executes;
 mod shell_parse;
 
 mod builtin;
@@ -13,6 +15,7 @@ mod program;
 
 struct ShellHelper {
     commands: Vec<String>,
+    ext_executes: Vec<String>,
 }
 
 impl Hinter for ShellHelper {
@@ -41,9 +44,11 @@ impl Completer for ShellHelper {
 
         let word = &line[start..pos];
 
+        let mut cmds = self.commands.clone();
+        cmds.append(&mut self.ext_executes.to_vec());
+
         if start == 0 {
-            matches = self
-                .commands
+            matches = cmds
                 .iter()
                 .filter(|&cmd| cmd.starts_with(word))
                 .map(|cmd| Pair {
@@ -71,6 +76,7 @@ fn main() -> anyhow::Result<()> {
             "type".to_string(),
             "echo".to_string(),
         ],
+        ext_executes: get_ext_executes()?,
     };
 
     rl.set_helper(Some(helper));
@@ -86,7 +92,7 @@ fn main() -> anyhow::Result<()> {
             }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
-                break;
+                // break;
             }
             Err(ReadlineError::Eof) => {
                 println!("CTRL-D");

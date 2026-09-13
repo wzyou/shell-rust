@@ -10,7 +10,7 @@ use std::{
 
 use crate::shell_parse::Redirect;
 
-fn get_path() -> Vec<String> {
+pub fn get_path() -> Vec<String> {
     env::var("PATH")
         .unwrap_or("".to_string())
         .split(':')
