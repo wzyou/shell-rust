@@ -43,8 +43,45 @@ impl Highlighter for ShellHelper {
 impl Helper for ShellHelper {}
 
 impl Validator for ShellHelper {}
+
+impl ShellHelper {
+    fn complete_custem(&self, line: &str, pos: usize, start: usize) -> Option<(usize, Vec<Pair>)> {
+        let args: Vec<&str> = line[..pos].split(" ").collect();
+        if !args.is_empty() {
+            let cmd = args[0];
+            if self.commands.contains(&cmd.to_string())
+                || self.ext_executes.contains(&cmd.to_string())
+            {
+                let ctx = &*self.context.borrow();
+                if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
+                    let (cmd, cur_arg, pre_arg) = (cmd, &line[start..pos], {
+                        if args.len() >= 3 {
+                            args[args.len() - 2]
+                        } else {
+                            ""
+                        }
+                    });
+                    if let Ok(output) = Command::new(v).arg(cmd).arg(cur_arg).arg(pre_arg).output()
+                    {
+                        let stdout_str = String::from_utf8_lossy(&output.stdout);
+                        let matches = stdout_str
+                            .lines()
+                            .map(|line| Pair {
+                                display: line.to_string(),
+                                replacement: line.to_string() + " ",
+                            })
+                            .collect();
+                        return Some((start, matches));
+                    }
+                }
+            }
+        }
+        None
+    }
+}
 impl Completer for ShellHelper {
     type Candidate = Pair;
+
     fn complete(
         &self, // FIXME should be `&mut self`
         line: &str,
@@ -62,26 +99,8 @@ impl Completer for ShellHelper {
         let mut cmds = self.commands.clone();
         cmds.append(&mut self.ext_executes.to_vec());
 
-        let cmd: Vec<&str> = line[..pos].split(" ").collect();
-        if !cmd.is_empty() {
-            let cmd = cmd[0];
-            if cmds.contains(&cmd.to_string()) {
-                let ctx = &*self.context.borrow();
-                if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
-                    if let Ok(output) = Command::new(v).output() {
-                        let stdout_str = String::from_utf8_lossy(&output.stdout);
-                        let matches = stdout_str
-                            .lines()
-                            .filter(|l| l.starts_with(&word))
-                            .map(|line| Pair {
-                                display: line.to_string(),
-                                replacement: line.to_string() + " ",
-                            })
-                            .collect();
-                        return Ok((start, matches));
-                    }
-                }
-            }
+        if let Some((size, matches)) = self.complete_custem(line, pos, start) {
+            return Ok((size, matches));
         }
 
         if start == 0 {
