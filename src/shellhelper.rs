@@ -1,13 +1,20 @@
+use std::cell::RefCell;
+use std::process::Command;
+use std::rc::Rc;
+
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 use rustyline::{Helper, Result};
 
+use crate::context;
+
 pub struct ShellHelper {
     commands: Vec<String>,
     ext_executes: Vec<String>,
     filename_completer: FilenameCompleter,
+    context: Rc<RefCell<context::Context>>,
 }
 
 impl ShellHelper {
@@ -15,11 +22,13 @@ impl ShellHelper {
         commands: Vec<String>,
         ext_cmds: Vec<String>,
         f_completer: FilenameCompleter,
+        context: Rc<RefCell<context::Context>>,
     ) -> Self {
         Self {
             commands,
             ext_executes: ext_cmds,
             filename_completer: f_completer,
+            context: context,
         }
     }
 }
@@ -52,6 +61,30 @@ impl Completer for ShellHelper {
 
         let mut cmds = self.commands.clone();
         cmds.append(&mut self.ext_executes.to_vec());
+
+        let cmd: Vec<&str> = line[..pos].split(" ").collect();
+        if !cmd.is_empty() {
+            let cmd = cmd[0];
+            if cmds.contains(&cmd.to_string()) {
+                let ctx = &*self.context.borrow();
+                if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
+                    if let Ok(output) = Command::new(v).output() {
+                        let stdout_str = String::from_utf8_lossy(&output.stdout);
+                        return Ok((
+                            start,
+                            stdout_str
+                                .lines()
+                                .filter(|l| l.starts_with(&word))
+                                .map(|line| Pair {
+                                    display: line.to_string(),
+                                    replacement: line.to_string() + " ",
+                                })
+                                .collect(),
+                        ));
+                    }
+                }
+            }
+        }
 
         if start == 0 {
             matches = cmds

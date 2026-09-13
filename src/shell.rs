@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use rustyline::{
     CompletionType, Editor, completion::FilenameCompleter, config::Configurer,
     error::ReadlineError, history::DefaultHistory,
@@ -7,7 +9,7 @@ use crate::{builtin, context, program, shell_parse, shellhelper};
 
 pub struct Shell {
     rl: Editor<shellhelper::ShellHelper, rustyline::history::FileHistory>,
-    context: context::Context,
+    context: Rc<RefCell<context::Context>>,
 }
 
 impl Shell {
@@ -15,17 +17,20 @@ impl Shell {
         let mut rl: Editor<shellhelper::ShellHelper, rustyline::history::FileHistory> =
             Editor::<shellhelper::ShellHelper, DefaultHistory>::new().unwrap();
 
+        let context = Rc::new(RefCell::new(context::Context::new()));
+
         let helper = shellhelper::ShellHelper::new(
             builtin::builtin_cmds(),
             program::get_ext_executes(),
             FilenameCompleter::new(),
+            context.clone(),
         );
 
         rl.set_helper(Some(helper));
         rl.set_completion_type(CompletionType::List);
         Self {
             rl,
-            context: context::Context::new(),
+            context: context.clone().into(),
         }
     }
 
@@ -69,7 +74,7 @@ impl Shell {
             ["exit"] => return Ok(true),
             [cmd, ..] if builtin::is_builtin_cmd(cmd) => {
                 match builtin::execute_with_redirect(
-                    &mut self.context,
+                    &mut *self.context.to_owned().borrow_mut(),
                     args_ref.as_slice(),
                     redirect_file,
                     redirect_file_err,
