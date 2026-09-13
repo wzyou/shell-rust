@@ -70,17 +70,15 @@ impl Completer for ShellHelper {
                 if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
                     if let Ok(output) = Command::new(v).output() {
                         let stdout_str = String::from_utf8_lossy(&output.stdout);
-                        return Ok((
-                            start,
-                            stdout_str
-                                .lines()
-                                .filter(|l| l.starts_with(&word))
-                                .map(|line| Pair {
-                                    display: line.to_string(),
-                                    replacement: line.to_string() + " ",
-                                })
-                                .collect(),
-                        ));
+                        let matches = stdout_str
+                            .lines()
+                            .filter(|l| l.starts_with(&word))
+                            .map(|line| Pair {
+                                display: line.to_string(),
+                                replacement: line.to_string() + " ",
+                            })
+                            .collect();
+                        return Ok((start, matches));
                     }
                 }
             }
