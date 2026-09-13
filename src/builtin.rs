@@ -94,7 +94,10 @@ pub fn execute_with_redirect(
                 writeln!(io_err, "cd: {}", e)?;
             }
         }
-        ["type", rest @ ("exit" | "echo" | "type" | "pwd")] => {
+        [
+            "type",
+            rest @ ("exit" | "echo" | "type" | "pwd" | "complete"),
+        ] => {
             writeln!(io_out, "{} is a shell builtin", rest)?;
         }
         ["type", rest @ ..] => match get_type_of_command(rest[0]) {
