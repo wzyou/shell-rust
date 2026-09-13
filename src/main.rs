@@ -68,7 +68,10 @@ impl Completer for ShellHelper {
                         ps.iter()
                             .map(|p| Pair {
                                 display: p.display.clone(),
-                                replacement: p.replacement.clone() + " ",
+                                replacement: match &p.replacement {
+                                    r if r.ends_with("/") => r.to_string(),
+                                    r => r.to_string() + " ",
+                                },
                             })
                             .collect(),
                     )
