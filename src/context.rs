@@ -68,5 +68,14 @@ impl Context {
                 false
             }
         });
+        let count = self.tasks.len();
+        for (i, t) in &mut self.tasks.iter_mut().enumerate() {
+            // t.flush_flag = '-';
+            if i == count - 1 {
+                t.flush_flag = '+';
+            } else if i == count - 2 {
+                t.flush_flag = '-';
+            }
+        }
     }
 }
