@@ -11,6 +11,12 @@ pub struct Variables {
     pub vars: HashMap<String, String>,
 }
 
+#[derive(Debug)]
+enum ExpansionType {
+    Var(String),
+    Text(String),
+}
+
 impl Variables {
     fn new() -> Self {
         Variables {
@@ -36,23 +42,82 @@ impl Variables {
         self.vars.get(k)
     }
 
-    pub fn try_get(&self, k: &str) -> String {
-        let ks: Vec<&str> = k.split("$").collect();
-        let cout = ks.iter().count().clone();
-        if cout <= 1 {
-            k.to_string()
-        } else {
-            ks.iter()
-                .enumerate()
-                .map(|(i, &k)| {
-                    if i > 0 {
-                        self.vars.get(k).map(|v| v.as_str()).unwrap_or("")
-                    } else {
-                        k
+    fn parameter_expansion_parse(&self, inout: &str) -> Vec<ExpansionType> {
+        // eprintln!("input: {:#?}", inout);
+        let mut pee = inout.chars().peekable();
+
+        let mut exps = Vec::new();
+        let mut exp = String::new();
+
+        let mut is_in_big_quotes = false;
+        let mut is_meet_doler = false;
+
+        while let Some(c) = pee.next() {
+            match c {
+                '$' => {
+                    if exp.is_empty() {
+                        is_meet_doler = true;
+                        continue;
                     }
-                })
-                .collect()
+
+                    if is_meet_doler {
+                        exps.push(ExpansionType::Var(exp));
+                    } else {
+                        exps.push(ExpansionType::Text(exp));
+                    }
+                    is_meet_doler = true;
+                    exp = String::new();
+                }
+                '{' => {
+                    if is_meet_doler {
+                        if !exp.is_empty() {
+                            exps.push(ExpansionType::Text(exp));
+                            exp = String::new();
+                        }
+                        is_in_big_quotes = true;
+                    } else {
+                        exp.push(c);
+                    }
+                }
+                '}' => {
+                    if is_meet_doler {
+                        if is_in_big_quotes {
+                            exps.push(ExpansionType::Var(exp));
+                            exp = String::new();
+                            is_in_big_quotes = false;
+                        } else {
+                            exp.push(c);
+                        }
+                    }
+                    is_meet_doler = false;
+                }
+                _ => {
+                    exp.push(c);
+                }
+            }
         }
+        if !exp.is_empty() {
+            if is_meet_doler {
+                exps.push(ExpansionType::Var(exp));
+            } else {
+                exps.push(ExpansionType::Text(exp));
+            }
+        }
+        // eprintln!("exps: {:#?}", exps);
+        exps
+    }
+
+    pub fn try_get(&self, k: &str) -> String {
+        let ks: Vec<String> = self
+            .parameter_expansion_parse(k)
+            .iter()
+            .map(|exp| match exp {
+                ExpansionType::Var(var) => self.get(var).unwrap_or(&"".to_string()).to_string(),
+                ExpansionType::Text(text) => text.to_owned(),
+            })
+            .collect();
+        // eprintln!("ks: {:#?}", ks);
+        ks.iter().flat_map(|s| s.chars()).collect()
     }
 
     pub fn get_k_v(&self, k: &str) -> Option<(&String, &String)> {

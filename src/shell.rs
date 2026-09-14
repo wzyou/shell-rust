@@ -217,6 +217,7 @@ impl Shell {
     fn line_deal(&mut self, input: &str) -> anyhow::Result<bool> {
         let full_command = shell_parse::parse_shell_args(&input);
         let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
+        // eprintln!("full_command: {:#?}", full_command);
         let full_command: Vec<String> = full_command
             .iter()
             .map(|&c| self.context.borrow_mut().vars.try_get(c))
