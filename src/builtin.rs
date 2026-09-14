@@ -50,7 +50,7 @@ pub enum TypeCommand {
 }
 
 const BUILTIN_COMMANDS: &[&str] = &[
-    "cd", "exit", "echo", "type", "pwd", "complete", "jobs", "history",
+    "cd", "exit", "echo", "type", "pwd", "complete", "jobs", "history", "declare",
 ];
 
 pub fn is_builtin_cmd(cmd: &str) -> bool {
@@ -189,6 +189,7 @@ pub fn execute_with_redirect(
                 writeln!(out, "{:>5}  {}", i + 1, item)?;
             }
         }
+        ["declare", _rest @ ..] => {}
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
             writeln!(out, "{} is a shell builtin", command)?;
         }
