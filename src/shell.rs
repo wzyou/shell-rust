@@ -221,6 +221,7 @@ impl Shell {
         let full_command: Vec<String> = full_command
             .iter()
             .map(|&c| self.context.borrow_mut().vars.try_get(c))
+            .filter(|c| !c.is_empty())
             .collect();
         let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
         if self.is_pepe_command(&full_command) {

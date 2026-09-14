@@ -1,5 +1,3 @@
-declare Blueberry_5=mango
-declare Orange_4=grape
-echo pear_${Blueberry_5}_apple ${Orange_4}_raspberry
-history
+declare pineapple=blueberry
+echo ${missing_var_2}_suffix ${pineapple} ${missing_var_5} $missing_var_3
 history -w t
