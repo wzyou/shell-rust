@@ -45,6 +45,9 @@ impl Shell {
             match readline {
                 Ok(line) => {
                     let line = line.trim();
+                    if line.starts_with("#") {
+                        continue;
+                    }
                     self.rl.add_history_entry(line)?;
                     if let Ok(true) = self.line_deal(line) {
                         break;
