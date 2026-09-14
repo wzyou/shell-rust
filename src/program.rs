@@ -33,6 +33,7 @@ fn spawn_with_io<T: Into<Stdio>, U: Into<Stdio>>(
     args: &[&str],
     stdout: Option<T>,
     stderr: Option<U>,
+    pipe_input: Option<Stdio>,
 ) -> anyhow::Result<Child> {
     let mut c = Command::new(custom_exe);
     if let Some(out) = stdout {
@@ -42,6 +43,11 @@ fn spawn_with_io<T: Into<Stdio>, U: Into<Stdio>>(
     if let Some(out) = stderr {
         c.stderr(out);
     }
+
+    if let Some(input) = pipe_input {
+        c.stdin(input);
+    }
+
     match c.args(args).spawn() {
         Ok(child) => Ok(child),
         Err(e) => Err(e.into()),
@@ -94,16 +100,20 @@ pub fn execute(
 pub fn spawn(
     custom_exe: &str,
     args: &[&str],
-    redirect_stdout: Option<Redirect>,
-    redirect_stderr: Option<Redirect>,
+    pipe_input: Option<Stdio>,
+    redirect_stdout: Option<Stdio>,
+    redirect_stderr: Option<Stdio>,
 ) -> anyhow::Result<Child> {
-    let io_out = redirect_create(redirect_stdout);
-    let io_err = redirect_create(redirect_stderr);
-
-    spawn_with_io(custom_exe, args, io_out, io_err)
+    spawn_with_io(
+        custom_exe,
+        args,
+        redirect_stdout,
+        redirect_stderr,
+        pipe_input,
+    )
 }
 
-fn redirect_create(redirect: Option<Redirect>) -> Option<Stdio> {
+pub fn redirect_create(redirect: Option<Redirect>) -> Option<Stdio> {
     if let Some(r) = redirect {
         match r {
             Redirect::Normal(f) => match File::create(&f) {

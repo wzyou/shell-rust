@@ -16,12 +16,12 @@ pub fn parse_shell_args(intput: &str) -> Vec<String> {
                 }
                 // arg.push(chars.peek().unwrap());
             }
-            '&' | ' ' | '\t' | '\n' if !is_single_quotes && !is_double_quotes => {
+            '|' | '&' | ' ' | '\t' | '\n' if !is_single_quotes && !is_double_quotes => {
                 if !arg.is_empty() {
                     args.push(arg);
                     arg = String::new();
                 }
-                if c == '&' {
+                if c == '&' || c == '|' {
                     args.push(c.to_string());
                 }
             }
@@ -74,6 +74,31 @@ pub fn parse_shell_args(intput: &str) -> Vec<String> {
 pub enum Redirect {
     Normal(String),
     Append(String),
+}
+
+pub fn split_pipe(args: &[&str]) -> Option<Vec<Vec<String>>> {
+    let mut result = Vec::new();
+    let mut current_command = Vec::new();
+
+    for arg in args {
+        if *arg == "|" {
+            if !current_command.is_empty() {
+                result.push(current_command);
+                current_command = Vec::new();
+            }
+        } else {
+            current_command.push(arg.to_string());
+        }
+    }
+
+    if !current_command.is_empty() {
+        result.push(current_command);
+    } else {
+        eprintln!("Warning: Trailing pipe with no command after it.");
+        return None;
+    }
+
+    Some(result)
 }
 
 pub fn split_redirect(args: &[&str]) -> (Vec<String>, Option<Redirect>, Option<Redirect>) {

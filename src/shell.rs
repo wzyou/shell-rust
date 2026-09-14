@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, process::Stdio, rc::Rc};
 
 use rustyline::{
     CompletionType, Editor, completion::FilenameCompleter, config::Configurer,
@@ -68,9 +68,74 @@ impl Shell {
         Ok(())
     }
 
+    fn pipe_deal(&mut self, pipe_commands: &[&str]) -> anyhow::Result<bool> {
+        let mut prev_pipe: Option<Stdio> = None;
+        let mut childen = Vec::new();
+
+        if let Some(cmds) = shell_parse::split_pipe(pipe_commands) {
+            for (i, args) in cmds.iter().enumerate() {
+                let is_last = i == cmds.len() - 1;
+                let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                let (full_command, redirect_file, redirect_file_err) =
+                    shell_parse::split_redirect(&args_str);
+                let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
+
+                let (stdout, stderr) = if is_last {
+                    (
+                        program::redirect_create(redirect_file).or(Some(Stdio::inherit())),
+                        program::redirect_create(redirect_file_err),
+                    )
+                } else {
+                    (Some(Stdio::piped()), None)
+                };
+                match args_ref.as_slice() {
+                    [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
+                        builtin::TypeCommand::Program(_) => match program::spawn(
+                            commands[0],
+                            &commands[1..commands.len()],
+                            prev_pipe.take(),
+                            stdout,
+                            stderr,
+                        ) {
+                            Ok(mut child) => {
+                                if !is_last {
+                                    prev_pipe = child.stdout.take().map(|p| Stdio::from(p));
+                                } else {
+                                    prev_pipe = None;
+                                    child.stdout = None;
+                                }
+                                childen.push(child);
+                            }
+                            Err(e) => {
+                                eprintln!("ERR: {e}");
+                            }
+                        },
+                        _ => println!(
+                            "{}: builtin command could not be used for pipe",
+                            commands[0]
+                        ),
+                    },
+                }
+            }
+
+            let _rs: Vec<bool> = childen.iter_mut().map(|c| c.wait().is_ok()).collect();
+
+            Ok(false)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn is_pepe_command(&self, command: &[&str]) -> bool {
+        command.contains(&"|")
+    }
+
     fn line_deal(&mut self, input: &str) -> anyhow::Result<bool> {
-        let full_command = shell_parse::parse_shell_args(&input); //input.split_whitespace().collect();
+        let full_command = shell_parse::parse_shell_args(&input);
         let full_command: Vec<&str> = full_command.iter().map(|s| s.as_ref()).collect();
+        if self.is_pepe_command(&full_command) {
+            return self.pipe_deal(&full_command);
+        }
         let (full_command, redirect_file, redirect_file_err) =
             shell_parse::split_redirect(&full_command);
         let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
@@ -106,8 +171,9 @@ impl Shell {
                         match program::spawn(
                             commands[0],
                             &commands[1..commands.len() - 1],
-                            redirect_file,
-                            redirect_file_err,
+                            None,
+                            program::redirect_create(redirect_file),
+                            program::redirect_create(redirect_file_err),
                         ) {
                             Ok(child) => {
                                 let pid = child.id();
