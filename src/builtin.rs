@@ -154,7 +154,20 @@ pub fn execute_with_redirect(
             fs::write(file, s.join("\n"))?;
         }
         ["history", "-a", file, ..] => {
-            rl.append_history(file)?;
+            // rl.append_history(file)?;
+            OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(file)
+                .and_then(|f| {
+                    //
+                    for item in rl.history().iter() {
+                        writeln!(&f, "{}", item)?;
+                    }
+                    Ok(())
+                })
+                .with_context(|| format!("无法打开文件 {}", file))?;
+            rl.clear_history()?;
         }
         ["history", rest @ ..] => {
             let history_items: Vec<_> = rl.history().iter().enumerate().collect();
