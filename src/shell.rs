@@ -1,9 +1,9 @@
-use std::{cell::RefCell, process::Stdio, rc::Rc};
-
 use rustyline::{
     CompletionType, Editor, completion::FilenameCompleter, config::Configurer,
     error::ReadlineError, history::DefaultHistory,
 };
+use std::io::{self};
+use std::{cell::RefCell, process::Stdio, rc::Rc};
 
 use crate::{builtin, context, program, shell_parse, shellhelper};
 
@@ -80,36 +80,67 @@ impl Shell {
                     shell_parse::split_redirect(&args_str);
                 let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
 
-                let (stdout, stderr) = if is_last {
-                    (
-                        program::redirect_create(redirect_file).or(Some(Stdio::inherit())),
-                        program::redirect_create(redirect_file_err),
-                    )
-                } else {
-                    (Some(Stdio::piped()), None)
-                };
                 match args_ref.as_slice() {
                     [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
-                        builtin::TypeCommand::Program(_) => match program::spawn(
-                            commands[0],
-                            &commands[1..commands.len()],
-                            prev_pipe.take(),
-                            stdout,
-                            stderr,
-                        ) {
-                            Ok(mut child) => {
-                                if !is_last {
-                                    prev_pipe = child.stdout.take().map(|p| Stdio::from(p));
-                                } else {
-                                    prev_pipe = None;
-                                    child.stdout = None;
+                        builtin::TypeCommand::Program(_) => {
+                            let (stdout, stderr) = if is_last {
+                                (
+                                    program::redirect_create(redirect_file)
+                                        .or(Some(Stdio::inherit())),
+                                    program::redirect_create(redirect_file_err),
+                                )
+                            } else {
+                                (Some(Stdio::piped()), None)
+                            };
+                            match program::spawn(
+                                commands[0],
+                                &commands[1..commands.len()],
+                                prev_pipe.take(),
+                                stdout,
+                                stderr,
+                            ) {
+                                Ok(mut child) => {
+                                    if !is_last {
+                                        prev_pipe = child.stdout.take().map(|p| Stdio::from(p));
+                                    } else {
+                                        prev_pipe = None;
+                                        child.stdout = None;
+                                    }
+                                    childen.push(child);
                                 }
-                                childen.push(child);
+                                Err(e) => {
+                                    eprintln!("ERR: {e}");
+                                }
                             }
-                            Err(e) => {
-                                eprintln!("ERR: {e}");
+                        }
+                        builtin::TypeCommand::Builtin(_cmd) => {
+                            let (stdout, stderr) = if is_last {
+                                (
+                                    builtin::create_redirect(redirect_file),
+                                    builtin::create_redirect(redirect_file_err),
+                                )
+                            } else {
+                                // let pipe = Stdio::piped();
+                                // writeln!(pipe, "pipe").unwrap();
+                                // File::from(pipe.as_raw_fd());
+                                let (stdout_reader, stdout_writer) =
+                                    io::pipe().expect("create pipe failure");
+                                prev_pipe = Some(Stdio::from(stdout_reader));
+                                let stdout: Box<dyn io::Write> = Box::new(stdout_writer);
+                                (Some(stdout), None)
+                            };
+                            match builtin::execute_with_redirect(
+                                &mut *self.context.borrow_mut(),
+                                commands,
+                                stdout,
+                                stderr,
+                            ) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("ERR: {e}");
+                                }
                             }
-                        },
+                        }
                         _ => println!(
                             "{}: builtin command could not be used for pipe",
                             commands[0]
@@ -147,8 +178,8 @@ impl Shell {
                 match builtin::execute_with_redirect(
                     &mut *self.context.to_owned().borrow_mut(),
                     args_ref.as_slice(),
-                    redirect_file,
-                    redirect_file_err,
+                    builtin::create_redirect(redirect_file),
+                    builtin::create_redirect(redirect_file_err),
                 ) {
                     Ok(_) => {}
                     Err(e) => {

@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use std::{
     env,
     fs::{self, File, OpenOptions},
-    io::Write,
+    io::{Write, stderr, stdout},
     os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
@@ -19,6 +19,9 @@ pub fn get_path() -> Vec<String> {
 }
 
 pub fn get_type_of_command(command: &str) -> TypeCommand {
+    if is_builtin_cmd(command) {
+        return TypeCommand::Builtin(command.to_string());
+    }
     let paths = get_path();
     for path in &paths {
         let Ok(entrues) = fs::read_dir(path) else {
@@ -41,7 +44,7 @@ pub fn get_type_of_command(command: &str) -> TypeCommand {
 }
 
 pub enum TypeCommand {
-    // Builtin(String),
+    Builtin(String),
     Program(String),
     None,
 }
@@ -56,53 +59,61 @@ pub fn builtin_cmds() -> Vec<String> {
     BUILTIN_COMMANDS.iter().map(|c| c.to_string()).collect()
 }
 
+pub fn create_redirect(redirect: Option<Redirect>) -> Option<Box<dyn Write>> {
+    if let Some(r) = redirect {
+        match r {
+            Redirect::Normal(f) => match File::create(&f) {
+                Ok(file) => Some(Box::new(file)),
+                Err(e) => {
+                    eprintln!("无法创建文件 {}: {}", f, e);
+                    None
+                }
+            },
+            Redirect::Append(f) => match OpenOptions::new().create(true).append(true).open(&f) {
+                Ok(file) => Some(Box::new(file)),
+                Err(e) => {
+                    eprintln!("无法创建文件 {}: {}", f, e);
+                    None
+                }
+            },
+        }
+    } else {
+        None
+    }
+}
+
 pub fn execute_with_redirect(
     context: &mut context::Context,
     args: &[&str],
-    out: Option<Redirect>,
-    err: Option<Redirect>,
+    mut out: Option<Box<dyn Write>>,
+    mut err: Option<Box<dyn Write>>,
 ) -> anyhow::Result<()> {
-    fn create_redirect(redirect: &Redirect) -> anyhow::Result<Box<dyn Write>> {
-        match redirect {
-            Redirect::Normal(f) => match File::create(&f) {
-                Ok(file) => Ok(Box::new(file)),
-                Err(e) => {
-                    eprintln!("无法创建文件 {}: {}", f, e);
-                    return Err(e.into()); // 遇到错误直接返回，不执行后续命令
-                }
-            },
-            Redirect::Append(f) => {
-                match OpenOptions::new().create(true).append(true).open(&f) {
-                    Ok(file) => Ok(Box::new(file)),
-                    Err(e) => {
-                        eprintln!("无法创建文件 {}: {}", f, e);
-                        return Err(e.into()); // 遇到错误直接返回，不执行后续命令
-                    }
-                }
-            }
-        }
-    }
-    let mut io_out: Box<dyn Write> = match out {
-        Some(redirect) => create_redirect(&redirect)?,
-        None => Box::new(std::io::stdout()),
-    };
-    let mut io_err: Box<dyn Write> = match err {
-        Some(redirect) => create_redirect(&redirect)?,
-        None => Box::new(std::io::stderr()),
-    };
+    // let mut io_out: Box<dyn Write> = match out {
+    //     Some(redirect) => create_redirect(&redirect)?,
+    //     None => Box::new(std::io::stdout()),
+    // };
+    // let mut io_err: Box<dyn Write> = match err {
+    //     Some(redirect) => create_redirect(&redirect)?,
+    //     None => Box::new(std::io::stderr()),
+    // };
+    let mut binding = stdout();
+    let out = out.as_mut().map(|w| &mut **w).unwrap_or(&mut binding);
+    let mut binding = stderr();
+    let err = err.as_mut().map(|w| &mut **w).unwrap_or(&mut binding);
+
     match args {
         ["echo", rest @ ..] => {
-            writeln!(io_out, "{}", rest.join(" "))?;
+            writeln!(out, "{}", rest.join(" "))?;
         }
         ["pwd"] => println!("{}", pwd().display()),
         ["cd", dir] => {
             if let Err(e) = cd(*dir) {
-                writeln!(io_err, "cd: {}", e)?;
+                writeln!(err, "cd: {}", e)?;
             }
         }
         ["cd"] => {
             if let Err(e) = cd("~") {
-                writeln!(io_err, "cd: {}", e)?;
+                writeln!(err, "cd: {}", e)?;
             }
         }
         ["complete", rest @ ..] => {
@@ -111,11 +122,9 @@ pub fn execute_with_redirect(
                     // writeln!(io_out, "complete: {}: no completion specification", rest[1])?;
                     let cmd = rest[1];
                     match context.regist_cmd_complete.get_key_value(cmd) {
-                        Some((_, compelte)) => {
-                            writeln!(io_out, "complete -C '{}' {}", compelte, cmd)?
-                        }
+                        Some((_, compelte)) => writeln!(out, "complete -C '{}' {}", compelte, cmd)?,
                         None => {
-                            writeln!(io_out, "complete: {}: no completion specification", rest[1])?
+                            writeln!(out, "complete: {}: no completion specification", rest[1])?
                         }
                     }
                 } else if rest[0] == "-C" && rest.len() >= 3 {
@@ -132,14 +141,14 @@ pub fn execute_with_redirect(
             context.list_tasks();
         }
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
-            writeln!(io_out, "{} is a shell builtin", command)?;
+            writeln!(out, "{} is a shell builtin", command)?;
         }
         ["type", rest @ ..] => match get_type_of_command(rest[0]) {
             TypeCommand::Program(custom_exe) => {
-                writeln!(io_out, "{} is {}", rest[0], custom_exe)?;
+                writeln!(out, "{} is {}", rest[0], custom_exe)?;
             }
             _ => {
-                writeln!(io_out, "{}: not found", rest[0])?;
+                writeln!(out, "{}: not found", rest[0])?;
             }
         },
         _ => {}
