@@ -198,12 +198,19 @@ pub fn execute_with_redirect(
         ["declare", rest @ ..] => match rest {
             ["-p", var, ..] => match context.vars.get_key_value(&var.to_string()) {
                 Some((k, v)) => {
-                    writeln!(out, "declare -x {}=\"{}\"", k, v)?;
+                    writeln!(out, "declare -- {}=\"{}\"", k, v)?;
                 }
                 None => {
                     writeln!(out, "declare: {}: not found", var)?;
                 }
             },
+            [var, ..] => {
+                let v: Vec<&str> = var.split("=").collect();
+                if v.iter().count() == 2 {
+                    let (k, v) = (v[0], v[1]);
+                    context.vars.insert(k.to_string(), v.to_string());
+                }
+            }
             _ => {
                 for (var, value) in &context.vars {
                     writeln!(out, "declare -x {}=\"{}\"", var, value)?;
