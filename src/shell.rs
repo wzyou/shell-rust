@@ -43,6 +43,29 @@ impl Shell {
                 eprintln!("无法加载历史文件: {}", histfile);
             });
         });
+
+        match self.run_impl() {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error: {:?}", e);
+            }
+        }
+
+        env::var("HISTFILE").ok().map(|histfile| {
+            self.rl.save_history(&histfile).unwrap_or_else(|_| {
+                eprintln!("无法保存历史文件: {}", histfile);
+            });
+        });
+
+        Ok(())
+    }
+
+    fn run_impl(&mut self) -> anyhow::Result<()> {
+        env::var("HISTFILE").ok().map(|histfile| {
+            self.rl.load_history(&histfile).unwrap_or_else(|_| {
+                eprintln!("无法加载历史文件: {}", histfile);
+            });
+        });
         loop {
             self.context.borrow_mut().update_tasks();
 
