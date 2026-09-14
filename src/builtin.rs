@@ -159,10 +159,16 @@ pub fn execute_with_redirect(
                 .open(file)
                 .and_then(|f| {
                     //
-                    let history_count_in_file = context.history_count_in_file;
-                    context.history_count_in_file = rl.history().iter().count();
+                    let history_count_in_file = context
+                        .history_count_in_file
+                        .entry(file.to_string())
+                        .or_insert(0);
+
+                    let history_count = history_count_in_file.clone();
+
+                    *history_count_in_file = rl.history().iter().count();
                     for (i, item) in rl.history().iter().enumerate() {
-                        if i >= history_count_in_file {
+                        if i >= history_count {
                             writeln!(&f, "{}", item)?;
                         }
                     }
@@ -189,7 +195,21 @@ pub fn execute_with_redirect(
                 writeln!(out, "{:>5}  {}", i + 1, item)?;
             }
         }
-        ["declare", _rest @ ..] => {}
+        ["declare", rest @ ..] => match rest {
+            ["-p", var, ..] => match context.vars.get_key_value(&var.to_string()) {
+                Some((k, v)) => {
+                    writeln!(out, "declare -x {}=\"{}\"", k, v)?;
+                }
+                None => {
+                    writeln!(out, "declare: {}: not found", var)?;
+                }
+            },
+            _ => {
+                for (var, value) in &context.vars {
+                    writeln!(out, "declare -x {}=\"{}\"", var, value)?;
+                }
+            }
+        },
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
             writeln!(out, "{} is a shell builtin", command)?;
         }

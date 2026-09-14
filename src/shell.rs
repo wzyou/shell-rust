@@ -44,8 +44,12 @@ impl Shell {
             self.rl.load_history(&histfile).unwrap_or_else(|_| {
                 eprintln!("无法加载历史文件: {}", histfile);
             });
+
+            self.context
+                .borrow_mut()
+                .history_count_in_file
+                .insert(histfile, self.rl.history().iter().count());
         });
-        self.context.borrow_mut().history_count_in_file = self.rl.history().iter().count();
 
         match self.run_impl() {
             Ok(_) => {}
@@ -54,16 +58,21 @@ impl Shell {
             }
         }
 
-        let history_count_in_file = self.context.borrow().history_count_in_file;
-
         env::var("HISTFILE").ok().map(|histfile| {
+            let history_count = self
+                .context
+                .borrow()
+                .history_count_in_file
+                .get_key_value(&histfile)
+                .map(|(_, &v)| v)
+                .unwrap_or(0);
             OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(&histfile)
                 .and_then(|f| {
                     for (i, item) in self.rl.history().iter().enumerate() {
-                        if i >= history_count_in_file {
+                        if i >= history_count {
                             writeln!(&f, "{}", item)?;
                         }
                     }
