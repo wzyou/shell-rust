@@ -144,11 +144,9 @@ pub fn execute_with_redirect(
             context.list_tasks();
         }
         ["history", "-r", file, ..] => {
-            // let f = File::open(file).with_context(|| format!("无法打开文件 {}", file))?;
             rl.load_history(file)?;
         }
         ["history", "-w", file, ..] => {
-            // rl.save_history(file)?;
             let mut s: Vec<String> = rl.history().iter().map(|c| c.to_owned()).collect();
             s.push("".to_string());
             fs::write(file, s.join("\n"))?;
@@ -161,13 +159,17 @@ pub fn execute_with_redirect(
                 .open(file)
                 .and_then(|f| {
                     //
-                    for item in rl.history().iter() {
-                        writeln!(&f, "{}", item)?;
+                    let history_count_in_file = context.history_count_in_file;
+                    context.history_count_in_file = rl.history().iter().count();
+                    for (i, item) in rl.history().iter().enumerate() {
+                        if i >= history_count_in_file {
+                            writeln!(&f, "{}", item)?;
+                        }
                     }
                     Ok(())
                 })
                 .with_context(|| format!("无法打开文件 {}", file))?;
-            rl.clear_history()?;
+            // rl.clear_history()?;
         }
         ["history", rest @ ..] => {
             let history_items: Vec<_> = rl.history().iter().enumerate().collect();

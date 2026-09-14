@@ -9,6 +9,7 @@ pub struct Task {
 pub struct Context {
     pub regist_cmd_complete: HashMap<String, String>,
     pub tasks: Vec<Task>,
+    pub history_count_in_file: usize,
 }
 
 impl Context {
@@ -16,6 +17,7 @@ impl Context {
         Self {
             regist_cmd_complete: HashMap::new(),
             tasks: Vec::new(),
+            history_count_in_file: 0,
         }
     }
 
