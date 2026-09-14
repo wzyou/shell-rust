@@ -143,6 +143,10 @@ pub fn execute_with_redirect(
         ["jobs", _rest @ ..] => {
             context.list_tasks();
         }
+        ["history", "-r", file, ..] => {
+            // let f = File::open(file).with_context(|| format!("无法打开文件 {}", file))?;
+            rl.load_history(file)?;
+        }
         ["history", rest @ ..] => {
             let history_items: Vec<_> = rl.history().iter().enumerate().collect();
             let history_items = if !rest.is_empty() {
