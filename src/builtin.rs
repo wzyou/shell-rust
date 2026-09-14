@@ -143,11 +143,23 @@ pub fn execute_with_redirect(
         ["jobs", _rest @ ..] => {
             context.list_tasks();
         }
-        ["history", _rest @ ..] => {
-            // context.list_history();
-            rl.history().iter().enumerate().for_each(|(i, entry)| {
-                writeln!(out, "{:>5} {}", i + 1, entry).unwrap();
-            });
+        ["history", rest @ ..] => {
+            let history_items: Vec<_> = rl.history().iter().enumerate().collect();
+            let history_items = if !rest.is_empty() {
+                let n = rest[0].parse::<usize>().ok().unwrap();
+                let len = history_items.len();
+                history_items
+                    .iter()
+                    .filter(|(i, _)| i + n >= len)
+                    .copied()
+                    .collect()
+            } else {
+                history_items
+            };
+
+            for (i, item) in history_items {
+                writeln!(out, "{:>5}  {}", i + 1, item)?;
+            }
         }
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
             writeln!(out, "{} is a shell builtin", command)?;
