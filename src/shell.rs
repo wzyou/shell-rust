@@ -2,9 +2,9 @@ use rustyline::{
     CompletionType, Editor, completion::FilenameCompleter, config::Configurer,
     error::ReadlineError, history::DefaultHistory,
 };
-use std::env;
 use std::io::{self};
 use std::{cell::RefCell, process::Stdio, rc::Rc};
+use std::{env, fs};
 
 use crate::{builtin, context, program, shell_parse, shellhelper};
 
@@ -52,7 +52,12 @@ impl Shell {
         }
 
         env::var("HISTFILE").ok().map(|histfile| {
-            self.rl.save_history(&histfile).unwrap_or_else(|_| {
+            // self.rl.save_history(&histfile).unwrap_or_else(|_| {
+            //     eprintln!("无法保存历史文件: {}", histfile);
+            // });
+            let mut s: Vec<String> = self.rl.history().iter().map(|c| c.to_owned()).collect();
+            s.push("".to_string());
+            fs::write(&histfile, s.join("\n")).unwrap_or_else(|_| {
                 eprintln!("无法保存历史文件: {}", histfile);
             });
         });
