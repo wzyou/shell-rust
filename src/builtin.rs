@@ -148,7 +148,10 @@ pub fn execute_with_redirect(
             rl.load_history(file)?;
         }
         ["history", "-w", file, ..] => {
-            rl.save_history(file)?;
+            // rl.save_history(file)?;
+            let mut s: Vec<String> = rl.history().iter().map(|c| c.to_owned()).collect();
+            s.push("".to_string());
+            fs::write(file, s.join("\n"))?;
         }
         ["history", "-a", file, ..] => {
             rl.append_history(file)?;
