@@ -131,6 +131,7 @@ impl Shell {
                             };
                             match builtin::execute_with_redirect(
                                 &mut *self.context.borrow_mut(),
+                                &mut self.rl,
                                 commands,
                                 stdout,
                                 stderr,
@@ -177,6 +178,7 @@ impl Shell {
             [cmd, ..] if builtin::is_builtin_cmd(cmd) => {
                 match builtin::execute_with_redirect(
                     &mut *self.context.to_owned().borrow_mut(),
+                    &mut self.rl,
                     args_ref.as_slice(),
                     builtin::create_redirect(redirect_file),
                     builtin::create_redirect(redirect_file_err),

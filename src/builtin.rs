@@ -86,6 +86,7 @@ pub fn create_redirect(redirect: Option<Redirect>) -> Option<Box<dyn Write>> {
 
 pub fn execute_with_redirect(
     context: &mut context::Context,
+    rl: &mut rustyline::Editor<crate::shellhelper::ShellHelper, rustyline::history::FileHistory>,
     args: &[&str],
     mut out: Option<Box<dyn Write>>,
     mut err: Option<Box<dyn Write>>,
@@ -144,6 +145,9 @@ pub fn execute_with_redirect(
         }
         ["history", _rest @ ..] => {
             // context.list_history();
+            rl.history().iter().enumerate().for_each(|(i, entry)| {
+                writeln!(out, "{:>5} {}", i + 1, entry).unwrap();
+            });
         }
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
             writeln!(out, "{} is a shell builtin", command)?;
