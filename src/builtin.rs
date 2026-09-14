@@ -208,7 +208,18 @@ pub fn execute_with_redirect(
                 let v: Vec<&str> = var.split("=").collect();
                 if v.iter().count() == 2 {
                     let (k, v) = (v[0], v[1]);
-                    context.vars.insert(k.to_string(), v.to_string());
+                    if k.chars().all(|c| c.is_alphanumeric() || c.eq(&'_')) {
+                        match k.chars().collect::<Vec<_>>().as_slice() {
+                            [a, ..] if !a.is_ascii_digit() => {
+                                context.vars.insert(k.to_string(), v.to_string());
+                            }
+                            _ => {
+                                writeln!(out, "declare: `{}={}\': not a valid identifier", k, v)?;
+                            }
+                        }
+                    } else {
+                        writeln!(out, "declare: `{}={}\': not a valid identifier", k, v)?;
+                    }
                 }
             }
             _ => {
