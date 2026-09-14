@@ -6,11 +6,65 @@ pub struct Task {
     child: Child,
     flush_flag: char,
 }
+
+pub struct Variables {
+    pub vars: HashMap<String, String>,
+}
+
+impl Variables {
+    fn new() -> Self {
+        Variables {
+            vars: HashMap::new(),
+        }
+    }
+
+    pub fn set_var(&mut self, k: &str, v: &str) {
+        if v.chars().collect::<Vec<_>>()[0].eq(&'$') {
+            let v_k = &v[1..];
+            let v = &self.vars.get(v_k).unwrap_or(&"".to_string()).to_owned();
+            self.set(k, v);
+        } else {
+            self.vars.insert(k.to_string(), v.to_string());
+        }
+    }
+
+    pub fn set(&mut self, k: &str, v: &str) {
+        self.vars.insert(k.to_string(), v.to_string());
+    }
+
+    pub fn get(&self, k: &str) -> Option<&String> {
+        self.vars.get(k)
+    }
+
+    pub fn try_get(&self, k: &str) -> String {
+        let ks: Vec<&str> = k.split("$").collect();
+        let cout = ks.iter().count().clone();
+        if cout <= 1 {
+            k.to_string()
+        } else {
+            ks.iter()
+                .enumerate()
+                .map(|(i, &k)| {
+                    if i > 0 {
+                        self.vars.get(k).map(|v| v.as_str()).unwrap_or("")
+                    } else {
+                        k
+                    }
+                })
+                .collect()
+        }
+    }
+
+    pub fn get_k_v(&self, k: &str) -> Option<(&String, &String)> {
+        self.vars.get_key_value(k)
+    }
+}
+
 pub struct Context {
     pub regist_cmd_complete: HashMap<String, String>,
     pub tasks: Vec<Task>,
     pub history_count_in_file: HashMap<String, usize>,
-    pub vars: HashMap<String, String>,
+    pub vars: Variables,
 }
 
 impl Context {
@@ -19,7 +73,7 @@ impl Context {
             regist_cmd_complete: HashMap::new(),
             tasks: Vec::new(),
             history_count_in_file: HashMap::new(),
-            vars: HashMap::new(),
+            vars: Variables::new(),
         }
     }
 

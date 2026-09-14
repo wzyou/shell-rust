@@ -106,6 +106,23 @@ pub fn execute_with_redirect(
 
     match args {
         ["echo", rest @ ..] => {
+            let rest: Vec<String> = rest
+                .iter()
+                .copied()
+                .map(|arg| match arg.chars().collect::<Vec<_>>().as_slice() {
+                    ['$', var @ ..] => {
+                        //
+                        let var: String = var.iter().collect();
+                        // env::var(&var).unwrap_or("".to_string())
+                        context
+                            .vars
+                            .get(&var)
+                            .unwrap_or(&"".to_string())
+                            .to_string()
+                    }
+                    _ => arg.to_string(),
+                })
+                .collect();
             writeln!(out, "{}", rest.join(" "))?;
         }
         ["pwd"] => writeln!(out, "{}", pwd().display())?,
@@ -196,7 +213,7 @@ pub fn execute_with_redirect(
             }
         }
         ["declare", rest @ ..] => match rest {
-            ["-p", var, ..] => match context.vars.get_key_value(&var.to_string()) {
+            ["-p", var, ..] => match context.vars.get_k_v(&var.to_string()) {
                 Some((k, v)) => {
                     writeln!(out, "declare -- {}=\"{}\"", k, v)?;
                 }
@@ -211,7 +228,7 @@ pub fn execute_with_redirect(
                     if k.chars().all(|c| c.is_alphanumeric() || c.eq(&'_')) {
                         match k.chars().collect::<Vec<_>>().as_slice() {
                             [a, ..] if !a.is_ascii_digit() => {
-                                context.vars.insert(k.to_string(), v.to_string());
+                                context.vars.set_var(k, v);
                             }
                             _ => {
                                 writeln!(out, "declare: `{}={}\': not a valid identifier", k, v)?;
@@ -223,9 +240,9 @@ pub fn execute_with_redirect(
                 }
             }
             _ => {
-                for (var, value) in &context.vars {
-                    writeln!(out, "declare -x {}=\"{}\"", var, value)?;
-                }
+                // for (var, value) in &context.vars {
+                //     writeln!(out, "declare -x {}=\"{}\"", var, value)?;
+                // }
             }
         },
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
