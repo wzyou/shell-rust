@@ -147,6 +147,12 @@ pub fn execute_with_redirect(
             // let f = File::open(file).with_context(|| format!("无法打开文件 {}", file))?;
             rl.load_history(file)?;
         }
+        ["history", "-w", file, ..] => {
+            rl.save_history(file)?;
+        }
+        ["history", "-a", file, ..] => {
+            rl.append_history(file)?;
+        }
         ["history", rest @ ..] => {
             let history_items: Vec<_> = rl.history().iter().enumerate().collect();
             let history_items = if !rest.is_empty() {
