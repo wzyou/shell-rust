@@ -2,6 +2,7 @@ use rustyline::{
     CompletionType, Editor, completion::FilenameCompleter, config::Configurer,
     error::ReadlineError, history::DefaultHistory,
 };
+use std::env;
 use std::io::{self};
 use std::{cell::RefCell, process::Stdio, rc::Rc};
 
@@ -37,6 +38,11 @@ impl Shell {
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
+        env::var("HISTFILE").ok().map(|histfile| {
+            self.rl.load_history(&histfile).unwrap_or_else(|_| {
+                eprintln!("无法加载历史文件: {}", histfile);
+            });
+        });
         loop {
             self.context.borrow_mut().update_tasks();
 
