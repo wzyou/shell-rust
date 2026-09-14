@@ -49,7 +49,9 @@ pub enum TypeCommand {
     None,
 }
 
-const BUILTIN_COMMANDS: &[&str] = &["cd", "exit", "echo", "type", "pwd", "complete", "jobs"];
+const BUILTIN_COMMANDS: &[&str] = &[
+    "cd", "exit", "echo", "type", "pwd", "complete", "jobs", "history",
+];
 
 pub fn is_builtin_cmd(cmd: &str) -> bool {
     BUILTIN_COMMANDS.contains(&cmd)
@@ -105,7 +107,7 @@ pub fn execute_with_redirect(
         ["echo", rest @ ..] => {
             writeln!(out, "{}", rest.join(" "))?;
         }
-        ["pwd"] => println!("{}", pwd().display()),
+        ["pwd"] => writeln!(out, "{}", pwd().display())?,
         ["cd", dir] => {
             if let Err(e) = cd(*dir) {
                 writeln!(err, "cd: {}", e)?;
@@ -139,6 +141,9 @@ pub fn execute_with_redirect(
         }
         ["jobs", _rest @ ..] => {
             context.list_tasks();
+        }
+        ["history", _rest @ ..] => {
+            // context.list_history();
         }
         ["type", command] if BUILTIN_COMMANDS.contains(&command) => {
             writeln!(out, "{} is a shell builtin", command)?;
