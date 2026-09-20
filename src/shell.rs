@@ -58,12 +58,12 @@ impl Shell {
             }
         }
 
-        env::var("HISTFILE").ok().map(|histfile| {
+        if let Ok(histfile) = &env::var("HISTFILE") {
             let history_count = self
                 .context
                 .borrow()
                 .history_count_in_file
-                .get_key_value(&histfile)
+                .get_key_value(histfile)
                 .map(|(_, &v)| v)
                 .unwrap_or(0);
             OpenOptions::new()
@@ -80,7 +80,7 @@ impl Shell {
                 })
                 .with_context(|| format!("无法保存历史文件:{}", histfile))
                 .unwrap();
-        });
+        }
 
         Ok(())
     }
