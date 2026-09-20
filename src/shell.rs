@@ -39,8 +39,8 @@ impl Shell {
         }
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        env::var("HISTFILE").ok().map(|histfile| {
+    fn load_history_file(&mut self) {
+        if let Some(histfile) = env::var("HISTFILE").ok() {
             self.rl.load_history(&histfile).unwrap_or_else(|_| {
                 eprintln!("无法加载历史文件: {}", histfile);
             });
@@ -49,23 +49,19 @@ impl Shell {
                 .borrow_mut()
                 .history_count_in_file
                 .insert(histfile, self.rl.history().iter().count());
-        });
-
-        match self.run_impl() {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
-            }
         }
+    }
 
-        if let Ok(histfile) = &env::var("HISTFILE") {
+    fn flush_history_file(&self) {
+        if let Ok(histfile) = env::var("HISTFILE") {
             let history_count = self
                 .context
                 .borrow()
                 .history_count_in_file
-                .get_key_value(histfile)
+                .get_key_value(&histfile)
                 .map(|(_, &v)| v)
                 .unwrap_or(0);
+
             OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -81,7 +77,19 @@ impl Shell {
                 .with_context(|| format!("无法保存历史文件:{}", histfile))
                 .unwrap();
         }
+    }
 
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        self.load_history_file();
+
+        match self.run_impl() {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error: {:?}", e);
+            }
+        }
+
+        self.flush_history_file();
         Ok(())
     }
 
@@ -120,6 +128,71 @@ impl Shell {
         Ok(())
     }
 
+    fn handle_pipeline_command(
+        &mut self,
+        commands: &[&str],
+        is_last: bool,
+        prev_pipe: &mut Option<Stdio>,
+        childen: &mut Vec<std::process::Child>,
+    ) {
+        match builtin::get_type_of_command(commands[0]) {
+            builtin::TypeCommand::Program(_) => {
+                let (stdout, stderr) = if is_last {
+                    (
+                        program::redirect_create(None).or(Some(Stdio::inherit())),
+                        None,
+                    )
+                } else {
+                    (Some(Stdio::piped()), None)
+                };
+
+                match program::spawn(
+                    commands[0],
+                    &commands[1..commands.len()],
+                    prev_pipe.take(),
+                    stdout,
+                    stderr,
+                ) {
+                    Ok(mut child) => {
+                        if !is_last {
+                            let pipe = child.stdout.take().map(Stdio::from);
+                            *prev_pipe = pipe;
+                        } else {
+                            *prev_pipe = None;
+                            child.stdout = None;
+                        }
+                        childen.push(child);
+                    }
+                    Err(e) => eprintln!("ERR: {e}"),
+                }
+            }
+            builtin::TypeCommand::Builtin(_cmd) => {
+                let (stdout, stderr) = if is_last {
+                    (None, None)
+                } else {
+                    let (stdout_reader, stdout_writer) = io::pipe().expect("create pipe failure");
+                    prev_pipe.replace(Stdio::from(stdout_reader));
+                    let stdout: Box<dyn io::Write> = Box::new(stdout_writer);
+                    (Some(stdout), None)
+                };
+
+                if let Err(e) = builtin::execute_with_redirect(
+                    &mut *self.context.borrow_mut(),
+                    &mut self.rl,
+                    commands,
+                    stdout,
+                    stderr,
+                ) {
+                    eprintln!("ERR: {e}");
+                }
+            }
+            _ => println!(
+                "{}: builtin command could not be used for pipe",
+                commands[0]
+            ),
+        }
+    }
+
     fn pipe_deal(&mut self, pipe_commands: &[&str]) -> anyhow::Result<bool> {
         let mut prev_pipe: Option<Stdio> = None;
         let mut childen = Vec::new();
@@ -128,82 +201,17 @@ impl Shell {
             for (i, args) in cmds.iter().enumerate() {
                 let is_last = i == cmds.len() - 1;
                 let args_str: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-                let (full_command, redirect_file, redirect_file_err) =
+                let (full_command, _redirect_file, _redirect_file_err) =
                     shell_parse::split_redirect(&args_str);
                 let args_ref: Vec<&str> = full_command.iter().map(|s| s.as_str()).collect();
 
-                match args_ref.as_slice() {
-                    [commands @ ..] => match builtin::get_type_of_command(commands[0]) {
-                        builtin::TypeCommand::Program(_) => {
-                            let (stdout, stderr) = if is_last {
-                                (
-                                    program::redirect_create(redirect_file)
-                                        .or(Some(Stdio::inherit())),
-                                    program::redirect_create(redirect_file_err),
-                                )
-                            } else {
-                                (Some(Stdio::piped()), None)
-                            };
-                            match program::spawn(
-                                commands[0],
-                                &commands[1..commands.len()],
-                                prev_pipe.take(),
-                                stdout,
-                                stderr,
-                            ) {
-                                Ok(mut child) => {
-                                    if !is_last {
-                                        prev_pipe = child.stdout.take().map(|p| Stdio::from(p));
-                                    } else {
-                                        prev_pipe = None;
-                                        child.stdout = None;
-                                    }
-                                    childen.push(child);
-                                }
-                                Err(e) => {
-                                    eprintln!("ERR: {e}");
-                                }
-                            }
-                        }
-                        builtin::TypeCommand::Builtin(_cmd) => {
-                            let (stdout, stderr) = if is_last {
-                                (
-                                    builtin::create_redirect(redirect_file),
-                                    builtin::create_redirect(redirect_file_err),
-                                )
-                            } else {
-                                // let pipe = Stdio::piped();
-                                // writeln!(pipe, "pipe").unwrap();
-                                // File::from(pipe.as_raw_fd());
-                                let (stdout_reader, stdout_writer) =
-                                    io::pipe().expect("create pipe failure");
-                                prev_pipe = Some(Stdio::from(stdout_reader));
-                                let stdout: Box<dyn io::Write> = Box::new(stdout_writer);
-                                (Some(stdout), None)
-                            };
-                            match builtin::execute_with_redirect(
-                                &mut *self.context.borrow_mut(),
-                                &mut self.rl,
-                                commands,
-                                stdout,
-                                stderr,
-                            ) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    eprintln!("ERR: {e}");
-                                }
-                            }
-                        }
-                        _ => println!(
-                            "{}: builtin command could not be used for pipe",
-                            commands[0]
-                        ),
-                    },
+                if !args_ref.is_empty() {
+                    let commands = args_ref.as_slice();
+                    self.handle_pipeline_command(commands, is_last, &mut prev_pipe, &mut childen);
                 }
             }
 
             let _rs: Vec<bool> = childen.iter_mut().map(|c| c.wait().is_ok()).collect();
-
             Ok(false)
         } else {
             Ok(false)
