@@ -110,7 +110,8 @@ pub fn split_redirect(args: &[&str]) -> (Vec<String>, Option<Redirect>, Option<R
     while let Some(arg) = iter.next() {
         match (arg, iter.peek().copied()) {
             ("1", Some(">")) => {
-                panic!("error: 1>")
+                command_args.push(arg.to_owned());
+                iter.next();
             }
             ("1>", Some(file)) => {
                 redirect_file = Some(Redirect::Normal(file.to_owned()));
@@ -135,4 +136,15 @@ pub fn split_redirect(args: &[&str]) -> (Vec<String>, Option<Redirect>, Option<R
     }
 
     (command_args, redirect_file, redirect_file_err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_redirect;
+
+    #[test]
+    fn malformed_redirect_does_not_panic() {
+        let result = std::panic::catch_unwind(|| split_redirect(&["1", ">"]));
+        assert!(result.is_ok());
+    }
 }

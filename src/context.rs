@@ -25,12 +25,14 @@ impl Variables {
     }
 
     pub fn set_var(&mut self, k: &str, v: &str) {
-        if v.chars().collect::<Vec<_>>()[0].eq(&'$') {
-            let v_k = &v[1..];
-            let v = &self.vars.get(v_k).unwrap_or(&"".to_string()).to_owned();
-            self.set(k, v);
-        } else {
-            self.vars.insert(k.to_string(), v.to_string());
+        match v.strip_prefix('$') {
+            Some(var_name) if !var_name.is_empty() => {
+                let resolved = self.vars.get(var_name).cloned().unwrap_or_default();
+                self.set(k, &resolved);
+            }
+            Some(_) | None => {
+                self.set(k, v);
+            }
         }
     }
 

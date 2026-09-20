@@ -189,7 +189,10 @@ pub fn execute_with_redirect(
         ["history", rest @ ..] => {
             let history_items: Vec<_> = rl.history().iter().enumerate().collect();
             let history_items = if !rest.is_empty() {
-                let n = rest[0].parse::<usize>().ok().unwrap();
+                let Some(n) = rest[0].parse::<usize>().ok() else {
+                    writeln!(err, "history: {}: invalid number", rest[0])?;
+                    return Ok(());
+                };
                 let len = history_items.len();
                 history_items
                     .iter()
