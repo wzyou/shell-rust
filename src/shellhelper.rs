@@ -51,52 +51,48 @@ impl ShellHelper {
         let args: Vec<&str> = line[..pos].trim().split(" ").collect();
         if !args.is_empty() {
             let cmd = args[0];
-            if self.commands.contains(&cmd.to_string())
-                || self.ext_executes.contains(&cmd.to_string())
-            {
-                let ctx = &*self.context.borrow();
-                if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
-                    let (cmd, cur_arg, pre_arg) = (cmd, &line[start..pos], {
-                        if args.len() >= 2 {
-                            args[args.len() - 2]
-                        } else {
-                            ""
-                        }
-                    });
-                    // eprintln!("{v}, {cmd}, {cur_arg}, {pre_arg}");
-                    fn log_debug(msg: &str) {
-                        if let Ok(mut file) = OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open("/tmp/debug.log")
-                        {
-                            let _ = writeln!(file, "{}", msg);
-                        }
+            let ctx = &*self.context.borrow();
+            if let Some((_, v)) = ctx.regist_cmd_complete.get_key_value(cmd) {
+                let (cmd, cur_arg, pre_arg) = (cmd, &line[start..pos], {
+                    if args.len() >= 2 {
+                        args[args.len() - 2]
+                    } else {
+                        ""
                     }
-
-                    // 在 completer 中使用：
-                    log_debug(&format!(
-                        "line: '{}', pos: {}, cmd: {}, current: {}, prev: {}, start: {}",
-                        line, pos, cmd, cur_arg, pre_arg, start
-                    ));
-                    if let Ok(output) = Command::new(v)
-                        .env("COMP_LINE", line)
-                        .env("COMP_POINT", pos.to_string())
-                        .arg(cmd)
-                        .arg(cur_arg)
-                        .arg(pre_arg)
-                        .output()
+                });
+                // eprintln!("{v}, {cmd}, {cur_arg}, {pre_arg}");
+                fn log_debug(msg: &str) {
+                    if let Ok(mut file) = OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("/tmp/debug.log")
                     {
-                        let stdout_str = String::from_utf8_lossy(&output.stdout);
-                        let matches = stdout_str
-                            .lines()
-                            .map(|line| Pair {
-                                display: line.to_string(),
-                                replacement: line.to_string() + " ",
-                            })
-                            .collect();
-                        return Some((start, matches));
+                        let _ = writeln!(file, "{}", msg);
                     }
+                }
+
+                // 在 completer 中使用：
+                log_debug(&format!(
+                    "line: '{}', pos: {}, cmd: {}, current: {}, prev: {}, start: {}",
+                    line, pos, cmd, cur_arg, pre_arg, start
+                ));
+                if let Ok(output) = Command::new(v)
+                    .env("COMP_LINE", line)
+                    .env("COMP_POINT", pos.to_string())
+                    .arg(cmd)
+                    .arg(cur_arg)
+                    .arg(pre_arg)
+                    .output()
+                {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let matches = stdout_str
+                        .lines()
+                        .map(|line| Pair {
+                            display: line.to_string(),
+                            replacement: line.to_string() + " ",
+                        })
+                        .collect();
+                    return Some((start, matches));
                 }
             }
         }
