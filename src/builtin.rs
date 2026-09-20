@@ -91,14 +91,6 @@ pub fn execute_with_redirect(
     mut out: Option<Box<dyn Write>>,
     mut err: Option<Box<dyn Write>>,
 ) -> anyhow::Result<()> {
-    // let mut io_out: Box<dyn Write> = match out {
-    //     Some(redirect) => create_redirect(&redirect)?,
-    //     None => Box::new(std::io::stdout()),
-    // };
-    // let mut io_err: Box<dyn Write> = match err {
-    //     Some(redirect) => create_redirect(&redirect)?,
-    //     None => Box::new(std::io::stderr()),
-    // };
     let mut binding = stdout();
     let out = out.as_mut().map(|w| &mut **w).unwrap_or(&mut binding);
     let mut binding = stderr();
